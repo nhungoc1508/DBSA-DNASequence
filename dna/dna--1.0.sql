@@ -16,11 +16,10 @@ CREATE OR REPLACE FUNCTION dna_out(dna)
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 -- Create DNA type
-CREATE TYPE dna (
-  internallength = 256,  
+CREATE TYPE dna (  
+  internallength = variable,
   input          = dna_in,
-  output         = dna_out,
-  alignment      = int4
+  output         = dna_out  
 );
 
 CREATE FUNCTION length(dna)
