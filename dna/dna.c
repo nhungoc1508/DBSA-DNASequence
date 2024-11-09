@@ -1,6 +1,6 @@
 #include "postgres.h"
 #include "fmgr.h"
-#include "libpq/pqformat.h"
+#include "utils/builtins.h"
 #include "varatt.h"
 
 PG_MODULE_MAGIC;
@@ -8,19 +8,25 @@ PG_MODULE_MAGIC;
 #define VALID_NUCLEOTIDES "ACGTacgt"
 
 typedef struct {
-    int32 vl_len_;        // header          
-    int32 length;         // length of dna        
-    char data[FLEXIBLE_ARRAY_MEMBER]; 
+    int32 vl_len_;
+    int32 length;       
+    char sequence[FLEXIBLE_ARRAY_MEMBER];  
 } dna;
 
-Datum dna_in(PG_FUNCTION_ARGS);
-Datum dna_out(PG_FUNCTION_ARGS);
-Datum dna_length(PG_FUNCTION_ARGS);
-static dna *dna_make(const char *input);
+#define DatumGetDnaP(X) ((dna *) PG_DETOAST_DATUM(X))
+#define DnaPGetDatum(X) PointerGetDatum(X)
+#define PG_GETARG_DNA_P(n) DatumGetDnaP(PG_GETARG_DATUM(n))
+#define PG_RETURN_DNA_P(x) return DnaPGetDatum(x)
 
-PG_FUNCTION_INFO_V1(dna_in);
-PG_FUNCTION_INFO_V1(dna_out);
-PG_FUNCTION_INFO_V1(dna_length);
+static dna *dna_make(int length, const char *sequence) {
+    dna *result = (dna *) palloc(VARHDRSZ + sizeof(int32) + length + 1);
+    SET_VARSIZE(result, VARHDRSZ + sizeof(int32) + length + 1);
+    result->length = length;
+    // memcpy(result->sequence, sequence, length);   
+    strcpy(result->sequence, sequence); 
+    result->sequence[length] = '\0';  
+    return result;
+}
 
 static bool is_valid_dna_sequence(const char *sequence) {
     for (int i = 0; sequence[i] != '\0'; i++) {
@@ -31,40 +37,39 @@ static bool is_valid_dna_sequence(const char *sequence) {
     return true;
 }
 
-static dna *dna_make(const char *input) {
-    if (!is_valid_dna_sequence(input))
-        ereport(ERROR, (errmsg("VALID_NUCLEOTIDES")));
+static dna *dna_parse(const char *str) {
+    int length = strlen(str);
 
-    int len = strlen(input);
-        
-    dna *result = (dna *) palloc(VARHDRSZ + sizeof(int32) + len); // VARHDRSZ for 'vl_len_'
-    SET_VARSIZE(result, VARHDRSZ + sizeof(int32) + len); // Total size includes length and data fields
-
-    result->length = len; 
-    memcpy(result->data, input, len); 
-
-    return result;
+    if (!is_valid_dna_sequence(str)) {
+        ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+                        errmsg("Invalid character in DNA sequence")));
+    }
+    return dna_make(length, str);
 }
 
-Datum
-dna_in(PG_FUNCTION_ARGS) {
-    char *input = PG_GETARG_CSTRING(0);
-    dna *result = dna_make(input);
-    PG_RETURN_POINTER(result);
+static char *dna_to_string(const dna *seq) {
+    return psprintf("%s", seq->sequence);
 }
 
-Datum
-dna_out(PG_FUNCTION_ARGS) {
-    dna *dna_seq = (dna *) PG_GETARG_POINTER(0);
-    char *output = (char *) palloc(dna_seq->length + 1); 
-    memcpy(output, dna_seq->data, dna_seq->length); 
-    output[dna_seq->length] = '\0'; // Null-terminate the string
 
-    PG_RETURN_CSTRING(output);
+PG_FUNCTION_INFO_V1(dna_in);
+Datum dna_in(PG_FUNCTION_ARGS) {
+    char *str = PG_GETARG_CSTRING(0);
+    PG_RETURN_DNA_P(dna_parse(str));
 }
 
-Datum
-dna_length(PG_FUNCTION_ARGS) {
-    dna *dna_seq = (dna *) PG_GETARG_POINTER(0);
-    PG_RETURN_INT32(dna_seq->length); 
+PG_FUNCTION_INFO_V1(dna_out);
+Datum dna_out(PG_FUNCTION_ARGS) {
+    dna *seq = PG_GETARG_DNA_P(0);
+    // char *result = dna_to_string(seq);
+    char *result = strdup(seq->sequence);
+    PG_FREE_IF_COPY(seq, 0);
+    PG_RETURN_CSTRING(result);
+}
+
+//length
+PG_FUNCTION_INFO_V1(dna_length);
+Datum dna_length(PG_FUNCTION_ARGS) {
+    dna *seq = PG_GETARG_DNA_P(0);
+    PG_RETURN_INT32(seq->length);
 }
