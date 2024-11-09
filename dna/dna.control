@@ -1,0 +1,5 @@
+# dna extension
+comment = 'dna - input/ouput functions for dna type'
+default_version = '1.0'
+module_pathname = '$libdir/dna'
+relocatable = true
