@@ -69,6 +69,16 @@ CREATE FUNCTION equals(kmer, kmer)
     AS 'MODULE_PATHNAME', 'kmer_equals'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE FUNCTION starts_with(kmer, kmer)
+    RETURNS boolean
+    AS 'MODULE_PATHNAME', 'kmer_starts_with'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION kmer_starts_with_swapped(kmer, kmer)
+    RETURNS boolean
+    AS 'SELECT starts_with($2, $1)'
+    LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE;
+
 /******************************************************************************
  * OPERATORS
  ******************************************************************************/
@@ -76,4 +86,10 @@ CREATE OPERATOR = (
     LEFTARG = kmer, RIGHTARG = kmer,
     PROCEDURE = equals,
     COMMUTATOR = =
+);
+
+CREATE OPERATOR ^@ (
+    LEFTARG = kmer, RIGHTARG = kmer,
+    PROCEDURE = kmer_starts_with_swapped
+    -- Commutator?
 );

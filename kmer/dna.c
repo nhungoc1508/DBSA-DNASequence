@@ -109,6 +109,12 @@ static char *kmer_to_str(const kmer *c) {
     return result;
 }
 
+static bool starts_with(char *prefix, char *c) {
+    bool result;
+    result = strncmp(prefix, c, strlen(prefix)) == 0;
+    return result;
+}
+
 /*****************************************************************************/
 
 PG_FUNCTION_INFO_V1(kmer_in);
@@ -185,5 +191,20 @@ Datum kmer_equals(PG_FUNCTION_ARGS) {
     }
     PG_FREE_IF_COPY(a, 0);
     PG_FREE_IF_COPY(b, 1);
+    PG_RETURN_BOOL(result);
+}
+
+PG_FUNCTION_INFO_V1(kmer_starts_with);
+Datum kmer_starts_with(PG_FUNCTION_ARGS) {
+    kmer *prefix = PG_GETARG_KMER_P(0);
+    kmer *c = PG_GETARG_KMER_P(1);
+    bool result;
+    if (prefix->k > c->k) {
+        result = false;
+    } else {
+        result = starts_with(prefix->data, c->data);
+    }
+    PG_FREE_IF_COPY(prefix, 0);
+    PG_FREE_IF_COPY(c, 1);   
     PG_RETURN_BOOL(result);
 }
