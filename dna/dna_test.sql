@@ -1,11 +1,6 @@
-CREATE TABLE genes (
-    id SERIAL PRIMARY KEY,
-    sequence dna
-);
-
-
-INSERT INTO genes (sequence) VALUES ('ATGCGT');
-
-SELECT * from genes;
-
-SELECT sequence, length(sequence) from genes;
+create table t(id serial primary key, test dna);
+insert into t Values (1,'AT');
+insert into t Values (2,'ATG');
+insert into t Values (3,'ATGX'); 
+insert into t Values (3,'ATGC');
+select test, length(test) from t;
