@@ -1,0 +1,5 @@
+# dna sequence extension
+comment = 'Extension for DNA sequence including 3 types: dna, kmer, qkmer'
+default_version = '1.0'
+module_pathname = '$libdir/dnasequence'
+relocatable = true
