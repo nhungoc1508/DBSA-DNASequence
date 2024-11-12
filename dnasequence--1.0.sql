@@ -27,6 +27,17 @@ CREATE OR REPLACE FUNCTION kmer_out(kmer)
     AS 'MODULE_PATHNAME'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+-- ********** qkmer **********
+CREATE OR REPLACE FUNCTION qkmer_in(cstring)
+    RETURNS qkmer
+    AS 'MODULE_PATHNAME', 'qkmer_in'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION qkmer_out(qkmer)
+    RETURNS cstring
+    AS 'MODULE_PATHNAME', 'qkmer_out'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 /******************************************************************************
  * TYPE DEFINITIONS
  ******************************************************************************/
@@ -44,6 +55,12 @@ CREATE TYPE kmer (
     -- receive        = kmer_recv,
     -- send           = kmer_send,
     alignment      = double -- ? Need to replace?
+);
+
+CREATE TYPE qkmer (
+    internallength = 32,
+    input = qkmer_in,
+    output = qkmer_out
 );
 
 /******************************************************************************
@@ -124,6 +141,30 @@ CREATE FUNCTION kmer_ge(kmer, kmer)
 CREATE FUNCTION kmer_cmp(kmer, kmer)
     RETURNS integer
     AS 'MODULE_PATHNAME', 'kmer_cmp'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+-- ********** qkmer **********
+CREATE OR REPLACE FUNCTION qkmer(text)
+    RETURNS qkmer
+    AS 'MODULE_PATHNAME', 'qkmer_cast_from_text'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION text(qkmer)
+    RETURNS text
+    AS 'MODULE_PATHNAME', 'qkmer_cast_to_text'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE CAST (text as qkmer) WITH FUNCTION qkmer(text) AS IMPLICIT;
+CREATE CAST (qkmer as text) WITH FUNCTION text(qkmer);
+
+CREATE FUNCTION qkmer(int, text)
+    RETURNS qkmer
+    AS 'MODULE_PATHNAME', 'qkmer_constructor'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION length(qkmer)
+    RETURNS int
+    AS 'MODULE_PATHNAME', 'qkmer_length'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 /******************************************************************************

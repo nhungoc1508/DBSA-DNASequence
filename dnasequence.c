@@ -25,6 +25,12 @@ PG_FUNCTION_INFO_V1(kmer_out);
 PG_FUNCTION_INFO_V1(kmer_cast_from_text);
 PG_FUNCTION_INFO_V1(kmer_cast_to_text);
 
+// ********** qkmer **********
+PG_FUNCTION_INFO_V1(qkmer_in);
+PG_FUNCTION_INFO_V1(qkmer_out);
+PG_FUNCTION_INFO_V1(qkmer_cast_from_text);
+PG_FUNCTION_INFO_V1(qkmer_cast_to_text);
+
 /******************************************************************************
  * FUNCTIONS
  ******************************************************************************/
@@ -45,17 +51,23 @@ PG_FUNCTION_INFO_V1(kmer_gt);
 PG_FUNCTION_INFO_V1(kmer_ge);
 PG_FUNCTION_INFO_V1(kmer_cmp);
 
+// ********** qkmer **********
+PG_FUNCTION_INFO_V1(qkmer_constructor);
+PG_FUNCTION_INFO_V1(qkmer_length);
+
 /******************************************************************************
  * IMPLEMENTATION
  ******************************************************************************/
 
 // ********** dna **********
-Datum dna_in(PG_FUNCTION_ARGS) {
+Datum
+dna_in(PG_FUNCTION_ARGS) {
     char *str = PG_GETARG_CSTRING(0);
     PG_RETURN_DNA_P(dna_parse(str));
 }
 
-Datum dna_out(PG_FUNCTION_ARGS) {
+Datum
+dna_out(PG_FUNCTION_ARGS) {
     dna *seq = PG_GETARG_DNA_P(0);
     // char *result = dna_to_string(seq);
     char *result = strdup(seq->sequence);
@@ -63,31 +75,36 @@ Datum dna_out(PG_FUNCTION_ARGS) {
     PG_RETURN_CSTRING(result);
 }
 
-Datum dna_length(PG_FUNCTION_ARGS) {
+Datum
+dna_length(PG_FUNCTION_ARGS) {
     dna *seq = PG_GETARG_DNA_P(0);
     PG_RETURN_INT32(seq->length);
 }
 
 // ********** kmer **********
-Datum kmer_in(PG_FUNCTION_ARGS) {
+Datum
+kmer_in(PG_FUNCTION_ARGS) {
     char *str = PG_GETARG_CSTRING(0);
     PG_RETURN_KMER_P(kmer_parse(&str));
 }
 
-Datum kmer_out(PG_FUNCTION_ARGS) {
+Datum
+kmer_out(PG_FUNCTION_ARGS) {
     kmer *c = PG_GETARG_KMER_P(0);
     char *result = strdup(c->data);
     PG_FREE_IF_COPY(c, 0);
     PG_RETURN_CSTRING(result);
 }
 
-Datum kmer_cast_from_text(PG_FUNCTION_ARGS) {
+Datum
+kmer_cast_from_text(PG_FUNCTION_ARGS) {
     text *txt = PG_GETARG_TEXT_P(0);
     char *str = DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(txt)));
     PG_RETURN_KMER_P(kmer_parse(&str));
 }
 
-Datum kmer_cast_to_text(PG_FUNCTION_ARGS) {
+Datum
+kmer_cast_to_text(PG_FUNCTION_ARGS) {
     kmer *c = PG_GETARG_KMER_P(0);
     text *out = (text *)DirectFunctionCall1(textin, PointerGetDatum(kmer_to_str(c)));
     PG_FREE_IF_COPY(c, 0);
@@ -95,20 +112,23 @@ Datum kmer_cast_to_text(PG_FUNCTION_ARGS) {
 }
 
 // Ref: https://doxygen.postgresql.org/varlena_8c.html#a7777d194920e57222a17b02166fc7232
-Datum kmer_constructor(PG_FUNCTION_ARGS) {
+Datum
+kmer_constructor(PG_FUNCTION_ARGS) {
     int k = PG_GETARG_INT32(0);
     char *data = text_to_cstring(PG_GETARG_TEXT_PP(1));
     PG_RETURN_KMER_P(kmer_make(k, data));
 }
 
-Datum kmer_length(PG_FUNCTION_ARGS) {
+Datum
+kmer_length(PG_FUNCTION_ARGS) {
     kmer *c = PG_GETARG_KMER_P(0);
     int k = c->k;
     PG_FREE_IF_COPY(c, 0);
     PG_RETURN_INT32(k);
 }
 
-Datum kmer_equals(PG_FUNCTION_ARGS) {
+Datum
+kmer_equals(PG_FUNCTION_ARGS) {
     kmer *a = PG_GETARG_KMER_P(0);
     kmer *b = PG_GETARG_KMER_P(1);
     bool result;
@@ -122,7 +142,8 @@ Datum kmer_equals(PG_FUNCTION_ARGS) {
     PG_RETURN_BOOL(result);
 }
 
-Datum kmer_starts_with(PG_FUNCTION_ARGS) {
+Datum
+kmer_starts_with(PG_FUNCTION_ARGS) {
     kmer *prefix = PG_GETARG_KMER_P(0);
     kmer *c = PG_GETARG_KMER_P(1);
     bool result;
@@ -181,7 +202,8 @@ generate_kmers(PG_FUNCTION_ARGS) {
 }
 
 // BTree functions
-Datum kmer_lt(PG_FUNCTION_ARGS) {
+Datum
+kmer_lt(PG_FUNCTION_ARGS) {
     kmer *a = PG_GETARG_KMER_P(0);
     kmer *b = PG_GETARG_KMER_P(1);
     bool result;
@@ -195,7 +217,8 @@ Datum kmer_lt(PG_FUNCTION_ARGS) {
     PG_RETURN_BOOL(result);
 }
 
-Datum kmer_le(PG_FUNCTION_ARGS) {
+Datum
+kmer_le(PG_FUNCTION_ARGS) {
     kmer *a = PG_GETARG_KMER_P(0);
     kmer *b = PG_GETARG_KMER_P(1);
     bool result;
@@ -209,7 +232,8 @@ Datum kmer_le(PG_FUNCTION_ARGS) {
     PG_RETURN_BOOL(result);
 }
 
-Datum kmer_gt(PG_FUNCTION_ARGS) {
+Datum
+kmer_gt(PG_FUNCTION_ARGS) {
     kmer *a = PG_GETARG_KMER_P(0);
     kmer *b = PG_GETARG_KMER_P(1);
     bool result;
@@ -223,7 +247,8 @@ Datum kmer_gt(PG_FUNCTION_ARGS) {
     PG_RETURN_BOOL(result);
 }
 
-Datum kmer_ge(PG_FUNCTION_ARGS) {
+Datum
+kmer_ge(PG_FUNCTION_ARGS) {
     kmer *a = PG_GETARG_KMER_P(0);
     kmer *b = PG_GETARG_KMER_P(1);
     bool result;
@@ -237,7 +262,8 @@ Datum kmer_ge(PG_FUNCTION_ARGS) {
     PG_RETURN_BOOL(result);
 }
 
-Datum kmer_cmp(PG_FUNCTION_ARGS) {
+Datum
+kmer_cmp(PG_FUNCTION_ARGS) {
     kmer *a = PG_GETARG_KMER_P(0);
     kmer *b = PG_GETARG_KMER_P(1);
     int result;
@@ -253,4 +279,57 @@ Datum kmer_cmp(PG_FUNCTION_ARGS) {
     PG_FREE_IF_COPY(a, 0);
     PG_FREE_IF_COPY(b, 1);
     PG_RETURN_INT32(result);
+}
+
+// ********** qkmer **********
+Datum
+qkmer_in(PG_FUNCTION_ARGS) 
+{
+    char *str = PG_GETARG_CSTRING(0);
+    PG_RETURN_QKMER_P(qkmer_parse(&str));
+}
+
+Datum
+qkmer_out(PG_FUNCTION_ARGS) 
+{
+    qkmer *c = PG_GETARG_QKMER_P(0);
+    char *result = strdup(c->data);
+    PG_FREE_IF_COPY(c, 0);
+    PG_RETURN_CSTRING(result);
+}
+
+Datum
+qkmer_cast_from_text(PG_FUNCTION_ARGS) 
+{
+    text *txt = PG_GETARG_TEXT_P(0);
+    char *str = DatumGetCString(DirectFunctionCall1(textout,
+                 PointerGetDatum(txt)));
+    PG_RETURN_QKMER_P(qkmer_parse(&str));
+}
+
+Datum 
+qkmer_cast_to_text(PG_FUNCTION_ARGS) 
+{
+    qkmer *c = PG_GETARG_QKMER_P(0);
+    text *out = (text *)DirectFunctionCall1(textin,
+                 PointerGetDatum(qkmer_to_str(c)));
+    PG_FREE_IF_COPY(c, 0);
+    PG_RETURN_TEXT_P(out);
+}
+
+Datum
+qkmer_constructor(PG_FUNCTION_ARGS) 
+{
+    int k = PG_GETARG_INT32(0);
+    char *data = text_to_cstring(PG_GETARG_TEXT_PP(1));
+    PG_RETURN_QKMER_P(qkmer_make(k, data));
+}
+
+Datum 
+qkmer_length(PG_FUNCTION_ARGS) 
+{
+    qkmer *c = PG_GETARG_QKMER_P(0);
+    int len = c->k;
+    PG_FREE_IF_COPY(c, 0);
+    PG_RETURN_INT32(len);
 }

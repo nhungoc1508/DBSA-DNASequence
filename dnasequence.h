@@ -12,6 +12,7 @@
 
 #include "data_types/dna.h"
 #include "data_types/kmer.h"
+#include "data_types/qkmer.h"
 
 // PG_MODULE_MAGIC;
 
@@ -26,5 +27,11 @@
 #define KmerPGetDatum(X) PointerGetDatum(X)
 #define PG_GETARG_KMER_P(n) DatumGetKmerP(PG_GETARG_DATUM(n))
 #define PG_RETURN_KMER_P(x) return KmerPGetDatum(x)
+
+// qkmer macros
+#define DatumGetQkmerP(X)  ((qkmer *) DatumGetPointer(X))
+#define QkmerPGetDatum(X)  PointerGetDatum(X)
+#define PG_GETARG_QKMER_P(n) DatumGetQkmerP(PG_GETARG_DATUM(n))
+#define PG_RETURN_QKMER_P(x) return QkmerPGetDatum(x)
 
 #endif // DNASEQUENCE_H

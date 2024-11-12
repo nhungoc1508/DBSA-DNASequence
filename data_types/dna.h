@@ -1,8 +1,6 @@
 #ifndef DNA_H
 #define DNA_H
 
-// #include "postgres.h"
-// #include "fmgr.h"
 #include "utils/builtins.h"
 #include "varatt.h"
 #include "libpq/pqformat.h"
@@ -13,8 +11,6 @@
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
-
-// #include "kmer.h"
 
 #define VALID_NUCLEOTIDES   "ACGTacgt"
 #define MAX_KMER_LEN        32

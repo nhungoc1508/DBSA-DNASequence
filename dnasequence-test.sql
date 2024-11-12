@@ -1,14 +1,23 @@
 CREATE EXTENSION dnasequence;
 
--- dna
+-- **********************************
+-- * dna
+-- **********************************
 CREATE TABLE seqs(id SERIAL PRIMARY KEY, dna dna);
 INSERT INTO seqs (dna) VALUES
     ('AT'),
     ('ATG'),
     ('ATGC');
+-- Test validation
+INSERT INTO seqs VALUES (4,'ATGX');
 SELECT dna, length(dna) FROM seqs;
+-- Generate
+SELECT k.kmer
+FROM generate_kmers('ACGTACGT', 6) AS k(kmer);
 
--- kmer
+-- **********************************
+-- * kmer
+-- **********************************
 CREATE TABLE kmers (id SERIAL PRIMARY KEY, kmer kmer);
 INSERT INTO kmers (kmer) VALUES
     ('ACGTA'),
@@ -16,18 +25,49 @@ INSERT INTO kmers (kmer) VALUES
     ('acgt'),
     ('gat'),
     ('AcGGtTa');
-SELECT * FROM kmers;
-SELECT kmer AS kmer, length(kmer) AS "length(kmer)" FROM kmers;
+-- Test invalid input syntax error
+INSERT INTO kmers (kmer) VALUES ('ABCD');
+-- Test maximum length exceeded error
+INSERT INTO kmers (kmer) VALUES ('ACGTAACGTAACGTAACGTAACGTAACGTAACGTA'); -- length = 35
+-- Test length()
+SELECT kmer, length(kmer) FROM kmers;
+-- Test equals()
 SELECT * FROM kmers WHERE equals('ACGTA', kmer);
 SELECT * FROM kmers WHERE kmer = 'ACGTA';
+-- Test startswith()
+SELECT * FROM kmers WHERE starts_with('ACG', kmer);
+SELECT * FROM kmers WHERE kmer ^@ 'gAT';
 
--- Generate
-SELECT k.kmer
-FROM generate_kmers('ACGTACGT', 6) AS k(kmer);
+-- **********************************
+-- * qkmer
+-- **********************************
+CREATE TABLE qkmers (
+    id SERIAL PRIMARY KEY,
+    qkmer qkmer
+);
+INSERT INTO qkmers (qkmer)
+VALUES 
+    ('AATGC'),       
+    ('AANNN'),       
+    ('WGTCA'),       
+    ('RACGTT'),      
+    ('NTGACGT'),     
+    ('ATGGCATCG');
+-- Test to see if values were inserted 
+SELECT * FROM qkmers;
+-- Test maximum length exceeded error (if greater than 32)
+INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN');  
+-- Test invalid nucleotide pattern matching 
+-- This should raise an error since 'Z' is not a valid IUPAC code
+INSERT INTO qkmers (qkmer) VALUES ('ZTGCA');  
+-- Test length of a qkmer that is exactly 32 (maximum allowed length), should work
+INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGRYSWKMACGTNNGT');
+-- Test length function
+SELECT qkmer, length(qkmer) FROM qkmers;
 
--- SELECT s.id, s.dna, k.kmer
--- FROM seqs AS s, generate_kmers(s.dna, 4) AS k(kmer);
-
+-- **********************************
+-- * GROUP BY
+-- **********************************
 SELECT k.kmer, count(*)
 FROM generate_kmers('ACGTACGTGATTCACGTACGT', 5) AS k(kmer)
 GROUP BY k.kmer
