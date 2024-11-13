@@ -30,7 +30,6 @@ PG_FUNCTION_INFO_V1(qkmer_in);
 PG_FUNCTION_INFO_V1(qkmer_out);
 PG_FUNCTION_INFO_V1(qkmer_cast_from_text);
 PG_FUNCTION_INFO_V1(qkmer_cast_to_text);
-PG_FUNCTION_INFO_V1(qkmer_contains);
 
 /******************************************************************************
  * FUNCTIONS
@@ -55,6 +54,7 @@ PG_FUNCTION_INFO_V1(kmer_cmp);
 // ********** qkmer **********
 PG_FUNCTION_INFO_V1(qkmer_constructor);
 PG_FUNCTION_INFO_V1(qkmer_length);
+PG_FUNCTION_INFO_V1(qkmer_contains);
 
 /******************************************************************************
  * IMPLEMENTATION
