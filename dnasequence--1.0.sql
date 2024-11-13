@@ -167,6 +167,11 @@ CREATE FUNCTION length(qkmer)
     AS 'MODULE_PATHNAME', 'qkmer_length'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE FUNCTION contains(qkmer, kmer)
+    RETURNS boolean
+    AS 'MODULE_PATHNAME', 'qkmer_contains'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 /******************************************************************************
  * OPERATORS (kmer)
  ******************************************************************************/
@@ -206,6 +211,15 @@ CREATE OPERATOR >= (
     LEFTARG = kmer, RIGHTARG = kmer,
     PROCEDURE = kmer_ge,
     COMMUTATOR = <=, NEGATOR = <
+);
+
+/******************************************************************************
+ * OPERATORS (qkmer)
+ ******************************************************************************/
+
+CREATE OPERATOR @> (
+    LEFTARG = qkmer, RIGHTARG = kmer,
+    PROCEDURE = contains
 );
 
 /******************************************************************************
