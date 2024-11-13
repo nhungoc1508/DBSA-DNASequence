@@ -30,6 +30,7 @@ PG_FUNCTION_INFO_V1(qkmer_in);
 PG_FUNCTION_INFO_V1(qkmer_out);
 PG_FUNCTION_INFO_V1(qkmer_cast_from_text);
 PG_FUNCTION_INFO_V1(qkmer_cast_to_text);
+PG_FUNCTION_INFO_V1(qkmer_contains);
 
 /******************************************************************************
  * FUNCTIONS
@@ -332,4 +333,19 @@ qkmer_length(PG_FUNCTION_ARGS)
     int len = c->k;
     PG_FREE_IF_COPY(c, 0);
     PG_RETURN_INT32(len);
+}
+
+Datum
+qkmer_contains(PG_FUNCTION_ARGS) {
+    qkmer *pattern = PG_GETARG_QKMER_P(0);
+    kmer *c = PG_GETARG_KMER_P(1);
+    bool result;
+    if (pattern->k != c->k) {
+        result = false;
+    } else {
+        result = contains(pattern->data, c->data);
+    }
+    PG_FREE_IF_COPY(pattern, 0);
+    PG_FREE_IF_COPY(c, 1);   
+    PG_RETURN_BOOL(result);
 }
