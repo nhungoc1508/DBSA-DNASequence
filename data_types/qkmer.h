@@ -24,6 +24,7 @@ static bool is_valid_qkmer(char **str);
 static bool nucleotide_matches(char iupac_code, char nucleotide);
 static qkmer *qkmer_parse(char **str);
 static char *qkmer_to_str(const qkmer *c);
+static bool contains(char *pattern, char *c);
 
 /******************************************************************************
  * AUXILIARY FUNCTIONS IMPLEMENTATION
@@ -67,6 +68,7 @@ is_valid_qkmer(char **str)
 static bool
 nucleotide_matches(char iupac_code, char nucleotide)
 {
+    iupac_code &= ~0x20;
     switch(iupac_code) // compares iupac code against cases below
     {
         case 'A': return nucleotide == 'A';
@@ -109,6 +111,17 @@ qkmer_to_str(const qkmer *c)
 {
     char *result = strdup(c->data);
     return result;
+}
+
+static bool contains(char *pattern, char *c) {
+
+    int len = strlen(pattern);
+    for (int i = 0; i < len; i++) {
+        if (!nucleotide_matches(pattern[i], c[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 #endif // QKMER_H
