@@ -64,6 +64,9 @@ INSERT INTO qkmers (qkmer) VALUES ('ZTGCA');
 INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGRYSWKMACGTNNGT');
 -- Test length function
 SELECT qkmer, length(qkmer) FROM qkmers;
+-- Test contains()
+SELECT * FROM kmers WHERE contains('ANGTA', kmer);
+SELECT * FROM kmers WHERE 'dhbbv'@> kmer;
 
 -- **********************************
 -- * GROUP BY
