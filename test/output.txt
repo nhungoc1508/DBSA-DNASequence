@@ -1,0 +1,40 @@
+Query:
+EXPLAIN(COSTS OFF) SELECT k.kmer, count(*)
+FROM generate_kmers('ACGTACGTGATTCACGTACGT', 5) AS k(kmer)
+GROUP BY k.kmer
+ORDER BY count(*) DESC;
+
+** With both BTree and Hash
+
+                  QUERY PLAN                   
+-----------------------------------------------
+ Sort
+   Sort Key: (count(*)) DESC
+   ->  HashAggregate
+         Group Key: kmer
+         ->  Function Scan on generate_kmers k
+(5 rows)
+
+** With only BTree
+
+                     QUERY PLAN                      
+-----------------------------------------------------
+ Sort
+   Sort Key: (count(*)) DESC
+   ->  GroupAggregate
+         Group Key: kmer
+         ->  Sort
+               Sort Key: kmer
+               ->  Function Scan on generate_kmers k
+(7 rows)
+
+** With only Hash
+
+                  QUERY PLAN                   
+-----------------------------------------------
+ Sort
+   Sort Key: (count(*)) DESC
+   ->  HashAggregate
+         Group Key: kmer
+         ->  Function Scan on generate_kmers k
+(5 rows)

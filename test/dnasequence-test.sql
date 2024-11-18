@@ -86,3 +86,12 @@ SELECT sum(count) AS total_count,
        count(*) AS distinct_count,
        count(*) FILTER (WHERE count = 1) AS unique_count
 FROM kmers;
+--  total_count | distinct_count | unique_count 
+-- -------------+----------------+--------------
+--           17 |             13 |            9
+
+-- **********************************s
+-- * BTREE/HASH
+-- **********************************
+CREATE INDEX kmer_btree_idx ON kmers USING btree (kmer);
+CREATE INDEX kmer_hash_idx ON kmers USING hash (kmer);

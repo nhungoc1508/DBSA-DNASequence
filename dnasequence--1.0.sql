@@ -143,6 +143,12 @@ CREATE FUNCTION kmer_cmp(kmer, kmer)
     AS 'MODULE_PATHNAME', 'kmer_cmp'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+/* Additional functions for the hash operator class */
+CREATE FUNCTION kmer_hash(kmer)
+    RETURNS integer
+    AS 'MODULE_PATHNAME', 'kmer_hash'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 -- ********** qkmer **********
 CREATE OR REPLACE FUNCTION qkmer(text)
     RETURNS qkmer
@@ -179,7 +185,8 @@ CREATE FUNCTION contains(qkmer, kmer)
 CREATE OPERATOR = (
     LEFTARG = kmer, RIGHTARG = kmer,
     PROCEDURE = equals,
-    COMMUTATOR = =
+    COMMUTATOR = =,
+    HASHES
 );
 
 CREATE OPERATOR ^@ (
@@ -233,3 +240,8 @@ CREATE OPERATOR CLASS kmer_ops
         OPERATOR        4       >= ,
         OPERATOR        5       > ,
         FUNCTION        1       kmer_cmp(kmer, kmer);
+
+CREATE OPERATOR CLASS kmer_hash_ops
+    DEFAULT FOR TYPE kmer USING hash AS
+        OPERATOR        1       = (kmer, kmer),
+        FUNCTION        1       kmer_hash(kmer);

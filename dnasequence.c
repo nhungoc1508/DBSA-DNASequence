@@ -50,6 +50,8 @@ PG_FUNCTION_INFO_V1(kmer_le);
 PG_FUNCTION_INFO_V1(kmer_gt);
 PG_FUNCTION_INFO_V1(kmer_ge);
 PG_FUNCTION_INFO_V1(kmer_cmp);
+// Additional functions for the hash operator class
+PG_FUNCTION_INFO_V1(kmer_hash);
 
 // ********** qkmer **********
 PG_FUNCTION_INFO_V1(qkmer_constructor);
@@ -280,6 +282,16 @@ kmer_cmp(PG_FUNCTION_ARGS) {
     PG_FREE_IF_COPY(a, 0);
     PG_FREE_IF_COPY(b, 1);
     PG_RETURN_INT32(result);
+}
+
+// Hash function
+Datum
+kmer_hash(PG_FUNCTION_ARGS) {
+    kmer *a = PG_GETARG_KMER_P(0);
+    int32 hash;
+    hash = (int32) hash_any((unsigned char *) a->data, strlen(a->data));
+    PG_FREE_IF_COPY(a, 0);
+    PG_RETURN_INT32(hash);
 }
 
 // ********** qkmer **********

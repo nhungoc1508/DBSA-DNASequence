@@ -1,6 +1,7 @@
 #ifndef KMER_H
 #define KMER_H
 
+#include "common/hashfn.h"
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
