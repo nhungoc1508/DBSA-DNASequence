@@ -50,3 +50,9 @@ CREATE FUNCTION length(qkmer)
   RETURNS int
   AS 'dna_extension', 'qkmer_length'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+/****SP-GIST*****************************************************************/
+CREATE FUNCTION spg_config(internal, internal)
+RETURNS void
+AS 'dna_extension', 'spg_kmer_config'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
