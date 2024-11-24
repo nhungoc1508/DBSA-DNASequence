@@ -15,8 +15,9 @@ char nucleotides[VALID_NUCLEOTIDES * 2 + 1] = {'A', 'C', 'G', 'T', 'a', 'c', 'g'
  ******************************************************************************/
 
 typedef struct {
-    int k;
-    char *data;
+    int32 vl_len_;
+    int32 k;
+    char data[32];
 } kmer;
 
 /******************************************************************************
@@ -39,9 +40,11 @@ static int kmer_cmp_internal(kmer *a, kmer *b);
  ******************************************************************************/
 
 static kmer *kmer_make(int k, char *data) {
-    kmer *c = palloc0(sizeof(kmer));
+    kmer *c = (kmer *) palloc(VARHDRSZ + sizeof(int32) + k + 1);
+    SET_VARSIZE(c, VARHDRSZ + sizeof(int32) + k + 1);
     c->k = k;
-    c->data = strdup(data);
+    strncpy(c->data, data, k);
+    c->data[k] = '\0';
     return c;
 }
 
@@ -85,7 +88,7 @@ static bool is_valid_kmer(char **str) {
 
 static char *to_uppercase(char *data) {
     int length = strlen(data);
-    char *upper_str = malloc(length + 1);
+    char *upper_str = palloc(length + 1);
     for (int i=0; data[i] != '\0'; i++) {
         if (data[i] >= 'a' && data[i] <= 'z') {
             upper_str[i] = data[i] - 32;
@@ -106,11 +109,11 @@ static kmer *kmer_parse(char **str) {
     // data = strdup(*str);
     char *upper_str;
     upper_str = to_uppercase(*str);
-    data = strdup(upper_str);
+    // data = strdup(upper_str);
     k = (int)strlen(data);
     if (k > MAX_KMER_LEN)
         ereport(ERROR, (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION), errmsg("Input exceeds maximum length allowed for type kmer (32)")));
-    return kmer_make(k, data);
+    return kmer_make(k, upper_str);
 }
 
 static char *kmer_to_str(const kmer *c) {

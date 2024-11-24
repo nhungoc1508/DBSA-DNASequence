@@ -49,12 +49,10 @@ CREATE TYPE dna (
 );
 
 CREATE TYPE kmer (
-    internallength = 32,
+    internallength = variable,
     input          = kmer_in,
     output         = kmer_out,
-    -- receive        = kmer_recv,
-    -- send           = kmer_send,
-    alignment      = double -- ? Need to replace?
+    alignment      = double
 );
 
 CREATE TYPE qkmer (
@@ -147,6 +145,37 @@ CREATE FUNCTION kmer_cmp(kmer, kmer)
 CREATE FUNCTION kmer_hash(kmer)
     RETURNS integer
     AS 'MODULE_PATHNAME', 'kmer_hash'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+/* Additional functions for the SP-GiST operator class */
+CREATE FUNCTION spgist_kmer_config(internal, internal)
+    RETURNS void
+    AS 'MODULE_PATHNAME', 'spgist_kmer_config'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION spgist_kmer_choose(internal, internal)
+    RETURNS void
+    AS 'MODULE_PATHNAME', 'spgist_kmer_choose'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION spgist_kmer_picksplit(internal, internal)
+    RETURNS void
+    AS 'MODULE_PATHNAME', 'spgist_kmer_picksplit'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION spgist_kmer_inner_consistent(internal, internal)
+    RETURNS void
+    AS 'MODULE_PATHNAME', 'spgist_kmer_inner_consistent'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION spgist_kmer_leaf_consistent(internal, internal)
+    RETURNS bool
+    AS 'MODULE_PATHNAME', 'spgist_kmer_leaf_consistent'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION spgist_kmer_compress(kmer)
+    RETURNS text
+    AS 'MODULE_PATHNAME', 'spgist_kmer_compress'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 -- ********** qkmer **********
@@ -245,3 +274,18 @@ CREATE OPERATOR CLASS kmer_hash_ops
     DEFAULT FOR TYPE kmer USING hash AS
         OPERATOR        1       = (kmer, kmer),
         FUNCTION        1       kmer_hash(kmer);
+
+CREATE OPERATOR CLASS kmer_spgist_ops
+    DEFAULT FOR TYPE kmer USING spgist AS
+        OPERATOR        1       < ,
+        OPERATOR        2       <= ,
+        OPERATOR        3       = ,
+        OPERATOR        4       >= ,
+        OPERATOR        5       > ,
+        FUNCTION        1       spgist_kmer_config(internal, internal),
+        FUNCTION        2       spgist_kmer_choose(internal, internal),
+        FUNCTION        3       spgist_kmer_picksplit(internal, internal),
+        FUNCTION        4       spgist_kmer_inner_consistent(internal, internal),
+        FUNCTION        5       spgist_kmer_leaf_consistent(internal, internal),
+        FUNCTION        6       spgist_kmer_compress(kmer),
+        STORAGE         text;

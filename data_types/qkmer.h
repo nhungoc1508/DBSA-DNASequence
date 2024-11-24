@@ -11,7 +11,7 @@
 typedef struct
 {
     int32 k;
-    char  *data;
+    char  data[32];
 } qkmer;
 
 /******************************************************************************
@@ -33,9 +33,12 @@ static bool contains(char *pattern, char *c);
 static qkmer *
 qkmer_make(int k, char *data)
 {
-    qkmer *c = palloc0(sizeof(qkmer));    
-    c->k = k; 
-    c->data = strdup(data);
+    // qkmer *c = palloc0(sizeof(qkmer)); 
+    qkmer *c = (qkmer *) palloc(VARHDRSZ + k + 1);
+    SET_VARSIZE(c, VARHDRSZ + k + 1);
+    c->k = k;
+    strcpy(c->data, data);
+    c->data[k] = '\0';
     return c;
 }
 
