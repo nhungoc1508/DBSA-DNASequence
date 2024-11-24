@@ -177,3 +177,23 @@ qkmer_length(PG_FUNCTION_ARGS)
     PG_FREE_IF_COPY(c, 0);
     PG_RETURN_INT32(len);
 }
+
+/******************************************************************************
+ * SP-GIST
+ ******************************************************************************/
+/*config initializes the SP-GiST index with the information about the data type and stucture*/
+
+PG_FUNCTION_INFO_V1(spg_kmer_config);
+Datum
+spg_kmer_config(PG_FUNCTION_ARGS)
+{
+    spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0);
+    spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
+    
+    cfgin->attType = TEXTOID; //type of data index will store (kmer is text)
+    cfg->prefixType = TEXTOID;
+    cfg->labelType = TEXTOID; // labels determine how data is partitioned. 
+    cfg->canReturnData = true; // true so index can return data when queried
+    cfg->longValuesOK = true; // index should support long values 
+    PG_RETURN_VOID();
+}
