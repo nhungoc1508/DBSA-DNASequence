@@ -102,6 +102,12 @@ CREATE INDEX kmer_hash_idx ON kmers USING hash (kmer);
 CREATE TABLE genomes(genome dna);
 \copy genomes FROM './test/genome_parsed.txt' WITH (FORMAT CSV)
 
+CREATE TABLE sample_5mers AS
+    SELECT k.kmer FROM (
+        SELECT generate_kmers(genome, 5)
+        FROM genomes)
+    AS k(kmer);
+
 SELECT k.kmer FROM (
     SELECT generate_kmers(genome, 5)
     FROM genomes)
@@ -113,12 +119,6 @@ SELECT k.kmer, count(*) FROM (
 AS k(kmer)
 GROUP BY k.kmer
 ORDER BY count(*) DESC;
-
-CREATE TABLE sample_5mers AS
-    SELECT k.kmer FROM (
-        SELECT generate_kmers(genome, 5)
-        FROM genomes)
-    AS k(kmer);
 
 SELECT kmer, count(*) FROM sample_5mers GROUP BY kmer ORDER BY count(*) DESC;
 

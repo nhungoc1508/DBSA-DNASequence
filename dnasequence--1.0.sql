@@ -173,10 +173,10 @@ CREATE FUNCTION spgist_kmer_leaf_consistent(internal, internal)
     AS 'MODULE_PATHNAME', 'spgist_kmer_leaf_consistent'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE FUNCTION spgist_kmer_compress(kmer)
-    RETURNS text
-    AS 'MODULE_PATHNAME', 'spgist_kmer_compress'
-    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+-- CREATE FUNCTION spgist_kmer_compress(kmer)
+--     RETURNS text
+--     AS 'MODULE_PATHNAME', 'spgist_kmer_compress'
+--     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 -- ********** qkmer **********
 CREATE OR REPLACE FUNCTION qkmer(text)
@@ -287,5 +287,5 @@ CREATE OPERATOR CLASS kmer_spgist_ops
         FUNCTION        3       spgist_kmer_picksplit(internal, internal),
         FUNCTION        4       spgist_kmer_inner_consistent(internal, internal),
         FUNCTION        5       spgist_kmer_leaf_consistent(internal, internal),
-        FUNCTION        6       spgist_kmer_compress(kmer),
-        STORAGE         text;
+        -- FUNCTION        6       spgist_kmer_compress(kmer),
+        STORAGE         kmer;
