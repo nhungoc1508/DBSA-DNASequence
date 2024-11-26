@@ -16,11 +16,12 @@
 #include "utils/pg_locale.h"
 #include "utils/varlena.h"
 
+#include "c.h"
+#include "access/stratnum.h"
+
 #include "data_types/dna.h"
 #include "data_types/kmer.h"
 #include "data_types/qkmer.h"
-
-// PG_MODULE_MAGIC;
 
 // dna macros
 #define DatumGetDnaP(X) ((dna *) PG_DETOAST_DATUM(X))
@@ -53,5 +54,15 @@ typedef struct spgNodePtr
 	int			i;
 	int16		c;
 } spgNodePtr;
+
+typedef uint16 StrategyNumber;
+#define BTLessStrategyNumber            1
+#define BTLessEqualStrategyNumber       2
+#define BTEqualStrategyNumber           3
+#define BTGreaterEqualStrategyNumber    4
+#define BTGreaterStrategyNumber         5
+#define SPG_STRATEGY_ADDITION   (10)
+#define SPG_IS_COLLATION_AWARE_STRATEGY(s) ((s) > SPG_STRATEGY_ADDITION \
+                                          && (s) != RTPrefixStrategyNumber)
 
 #endif // DNASEQUENCE_H

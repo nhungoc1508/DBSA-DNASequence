@@ -610,38 +610,50 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
     spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
     spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
     // bool        collate_is_c = pg_newlocale_from_collation(PG_GET_COLLATION())->collate_is_c;
-    kmer       *reconstructedKmer;
+    kmer       *reconstructedValue;
     kmer       *reconstrKmer;
     int         maxReconstrLen;
     kmer       *prefixKmer = NULL;
     int         prefixSize = 0;
     int         i;
 
-    reconstructedKmer = DatumGetKmerP(in->reconstructedValue);
-    // Assert(reconstructedKmer == NULL ? in->level == 0 :
-    //        reconstructedKmer->k == in->level);
-    elog(NOTICE, "inner_consistent called, rec kmer: %s", reconstructedKmer->data);
+    /*
+    * Reconstruct values represented at this tuple, including parent data,
+    * prefix of this tuple if any, and the node label if it's non-dummy.
+    * in->level should be the length of the previously reconstructed value,
+    * and the number of bytes added here is prefixSize or prefixSize + 1.
+    *
+    * Note: we assume that in->reconstructedValue isn't toasted and doesn't
+    * have a short varlena header.  This is okay because it must have been
+    * created by a previous invocation of this routine, and we always emit
+    * long-format reconstructed values.
+    */
+    reconstructedValue = (kmer *) DatumGetPointer(in->reconstructedValue);
+    // Assert(reconstructedValue == NULL ? in->level == 0 :
+    //       (reconstructedValue->k) == in->level);
+    // elog(NOTICE, "inner_consistent called, rec kmer: %s", reconstructedKmer->data);
 
     maxReconstrLen = in->level + 1;
 
     if (in->hasPrefix) {
         prefixKmer = DatumGetKmerP(in->prefixDatum);
-        prefixSize = prefixKmer->k;
+        prefixSize = (prefixKmer->k);
         maxReconstrLen += prefixSize;
     }
 
-    reconstrKmer = palloc(sizeof(kmer) + maxReconstrLen);
-    SET_VARSIZE(reconstrKmer, sizeof(kmer) + maxReconstrLen);
-    reconstrKmer->k = in->level + prefixSize;
+    reconstrKmer = palloc(sizeof(kmer));
+    SET_VARSIZE(reconstrKmer, sizeof(kmer));
+    // reconstrKmer->k = in->level + prefixSize;
 
     if (in->level)
-        memcpy(reconstrKmer->data,
-               reconstructedKmer->data,
+        memcpy((reconstrKmer->data),
+               (reconstructedValue->data),
                in->level);
     if (prefixSize)
-        memcpy(reconstrKmer->data + in->level,
-               prefixKmer->data,
-               prefixSize);
+        memcpy(((char *) (reconstrKmer->data)) + in->level,
+                (prefixKmer->data),
+                prefixSize);
+    /* last byte of reconstrKmer will be filled in below */
     
     /*
      * Scan the child nodes.  For each one, complete the reconstructed value
@@ -659,31 +671,40 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
         bool    res = true;
         int     j;
 
+        /* If nodeChar is a dummy value, don't include it in data */
         if (nodeChar <= 0) {
             thisLen = maxReconstrLen - 1;
         } else {
-            reconstrKmer->data[maxReconstrLen - 1] = (char) nodeChar;
+            ((unsigned char *) (reconstrKmer->data))[maxReconstrLen - 1] = nodeChar;
             thisLen = maxReconstrLen;
         }
 
         for (j = 0; j < in->nkeys; j++) {
             StrategyNumber strategy = in->scankeys[j].sk_strategy;
-            kmer    *queryKmer;
+            kmer    *inKmer;
             int      inSize;
             int      r;
 
-            // if (SPG_IS_COLLATION_AWARE_STRATEGY(strategy))
-            // {
-            //     if (collate_is_c)
-            //         strategy -= SPG_STRATEGY_ADDITION;
-            //     else
-            //         continue;
-            // }
+            /*
+            * If it's a collation-aware operator, but the collation is C, we
+            * can treat it as non-collation-aware.  With non-C collation we
+            * need to traverse whole tree :-( so there's no point in making
+            * any check here.  (Note also that our reconstructed value may
+            * well end with a partial multibyte character, so that applying
+            * any encoding-sensitive test to it would be risky anyhow.)
+            */
 
-            queryKmer = DatumGetKmerP(in->scankeys[j].sk_argument);
-            inSize = queryKmer->k;
+            inKmer = DatumGetKmerP(in->scankeys[j].sk_argument);
+            inSize = (inKmer->k);
 
-            r = kmer_cmp_internal(reconstrKmer, queryKmer);
+            size_t minLen = Min(inSize, thisLen);
+
+            for (size_t i = 0; i < minLen; i++) {
+                if (!nucleotide_matches(reconstrKmer->data[i], inKmer->data[i])) {
+                    r = reconstrKmer->data[i] - inKmer->data[i];
+                    break;
+                }
+            }
             
             switch (strategy)
             {
@@ -707,21 +728,20 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
                     break;
                 default:
                     elog(ERROR, "unrecognized strategy number: %d",
-                         in->scankeys[j].sk_strategy);
+                        in->scankeys[j].sk_strategy);
                     break;
             }
 
             if (!res)
-                break;
+                break;          /* no need to consider remaining conditions */
         }
 
         if (res)
         {
             out->nodeNumbers[out->nNodes] = i;
             out->levelAdds[out->nNodes] = thisLen - in->level;
-            // SET_VARSIZE(reconstrKmer, VARHDRSZ + sizeof(int32) + k + 1 + thisLen);
             out->reconstructedValues[out->nNodes] =
-                datumCopy(KmerPGetDatum(reconstrKmer), false, -1);
+                datumCopy(PointerGetDatum(reconstrKmer), false, -1);
             out->nNodes++;
         }
     }
@@ -729,49 +749,47 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
 }
 
 Datum
-spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS){
+spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
+{
     spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
     spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
     int         level = in->level;
-    text       *leafValue,
-               *reconstrValue = NULL;
+    kmer       *leafValue,
+            *reconstrValue = NULL;
     char       *fullValue;
     int         fullLen;
     bool        res;
     int         j;
 
-    /* all tests are exact */
-    out->recheck = false;
+    out->recheck = true;
 
-    leafValue = DatumGetTextPP(in->leafDatum);
-    elog(NOTICE, "leaf_consistent called");
+    leafValue = DatumGetKmerP(in->leafDatum);
 
     /* As above, in->reconstructedValue isn't toasted or short. */
     if (DatumGetPointer(in->reconstructedValue))
-        reconstrValue = (text *) DatumGetPointer(in->reconstructedValue);
+        reconstrValue = (kmer *) DatumGetPointer(in->reconstructedValue);
 
-    Assert(reconstrValue == NULL ? level == 0 :
-           VARSIZE_ANY_EXHDR(reconstrValue) == level);
+    // Assert(reconstrValue == NULL ? level == 0 :
+    //     (reconstrValue->k) == level);
 
     /* Reconstruct the full string represented by this leaf tuple */
-    fullLen = level + VARSIZE_ANY_EXHDR(leafValue);
-    if (VARSIZE_ANY_EXHDR(leafValue) == 0 && level > 0)
+    fullLen = level + (leafValue->k);
+    if ((leafValue->k) == 0 && level > 0)
     {
-        fullValue = VARDATA(reconstrValue);
+        fullValue = (reconstrValue->data);
         out->leafValue = PointerGetDatum(reconstrValue);
     }
     else
     {
-        text       *fullText = palloc(VARHDRSZ + fullLen);
-
-        SET_VARSIZE(fullText, VARHDRSZ + fullLen);
-        fullValue = VARDATA(fullText);
+        kmer       *fullKmer = palloc(sizeof(kmer));
+        fullKmer->k = fullLen;
+        fullValue = (fullKmer->data);
         if (level)
-            memcpy(fullValue, VARDATA(reconstrValue), level);
-        if (VARSIZE_ANY_EXHDR(leafValue) > 0)
-            memcpy(fullValue + level, VARDATA_ANY(leafValue),
-                   VARSIZE_ANY_EXHDR(leafValue));
-        out->leafValue = PointerGetDatum(fullText);
+            memcpy(fullValue, (reconstrValue->data), level);
+        if ((leafValue->k) > 0)
+            memcpy(fullValue + level, (leafValue->data),
+                (leafValue->k));
+        out->leafValue = PointerGetDatum(fullKmer);
     }
 
     /* Perform the required comparison(s) */
@@ -779,53 +797,46 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS){
     for (j = 0; j < in->nkeys; j++)
     {
         StrategyNumber strategy = in->scankeys[j].sk_strategy;
-        text       *query = DatumGetTextPP(in->scankeys[j].sk_argument);
-        int         queryLen = VARSIZE_ANY_EXHDR(query);
+        kmer       *query = DatumGetKmerP(in->scankeys[j].sk_argument);
+        int         queryLen = (query->k);
         int         r;
+        kmer *leafKmer = (kmer *) DatumGetKmerP(out->leafValue);
 
         if (strategy == RTPrefixStrategyNumber)
         {
             /*
-             * if level >= length of query then reconstrValue must begin with
-             * query (prefix) string, so we don't need to check it again.
-             */
+            * if level >= length of query then reconstrValue must begin with
+            * query (prefix) string, so we don't need to check it again.
+            */
             res = (level >= queryLen) ||
-                DatumGetBool(DirectFunctionCall2Coll(text_starts_with,
-                                                     PG_GET_COLLATION(),
-                                                     out->leafValue,
-                                                     PointerGetDatum(query)));
+                contains(query->data,leafKmer->data);
+                
 
-            if (!res)            /* no need to consider remaining conditions */
-                break;
-
+            if (!res){
+            // Handle the case where there's no match
+            break;  // Or some indication of no match
+        }
+            
+            
             continue;
         }
 
-        if (SPG_IS_COLLATION_AWARE_STRATEGY(strategy))
-        {
-            /* Collation-aware comparison */
-            strategy -= SPG_STRATEGY_ADDITION;
+        size_t minLen = Min(queryLen, fullLen);
 
-            /* If asserts enabled, verify encoding of reconstructed string */
-            Assert(pg_verifymbstr(fullValue, fullLen, false));
-
-            r = varstr_cmp(fullValue, fullLen,
-                           VARDATA_ANY(query), queryLen,
-                           PG_GET_COLLATION());
+    for (size_t i = 0; i < minLen; i++) {
+        if (!nucleotide_matches(query->data[i], fullValue[i])) {
+            r = query->data[i] - fullValue[i];
+            break;
         }
-        else
-        {
-            /* Non-collation-aware comparison */
-            r = memcmp(fullValue, VARDATA_ANY(query), Min(queryLen, fullLen));
-
-            if (r == 0)
-            {
-                if (queryLen > fullLen)
-                    r = -1;
-                else if (queryLen < fullLen)
-                    r = 1;
-            }
-        }
+    }
+    
+    if (r == 0)
+    {
+        if (queryLen > fullLen)
+            r = -1;
+        else if (queryLen < fullLen)
+            r = 1;
+    }
 
         switch (strategy)
         {
@@ -846,13 +857,13 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS){
                 break;
             default:
                 elog(ERROR, "unrecognized strategy number: %d",
-                     in->scankeys[j].sk_strategy);
+                    in->scankeys[j].sk_strategy);
                 res = false;
                 break;
         }
 
         if (!res)
-            break;                /* no need to consider remaining conditions */
+            break;              /* no need to consider remaining conditions */
     }
 
     PG_RETURN_BOOL(res);

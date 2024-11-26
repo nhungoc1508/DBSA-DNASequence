@@ -102,6 +102,12 @@ CREATE INDEX kmer_hash_idx ON kmers USING hash (kmer);
 CREATE TABLE genomes(genome dna);
 \copy genomes FROM './test/genome_parsed.txt' WITH (FORMAT CSV)
 
+CREATE TABLE sample_32mers AS
+    SELECT k.kmer FROM (
+        SELECT generate_kmers(genome, 32)
+        FROM genomes)
+    AS k(kmer);
+
 CREATE TABLE sample_5mers AS
     SELECT k.kmer FROM (
         SELECT generate_kmers(genome, 5)
@@ -151,7 +157,7 @@ explain select * from kmers where kmer_tmp_c(kmer, 'ACGT') is true; -- ERROR
 -- **********************************
 -- * SP-GIST INDEX
 -- **********************************
-CREATE INDEX kmer_spgist_idx ON sample_5mers USING spgist(kmer);
+CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 SET enable_seqscan = OFF;
 
 -- *** Equality search ***
