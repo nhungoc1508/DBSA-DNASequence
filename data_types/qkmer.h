@@ -25,6 +25,7 @@ static bool nucleotide_matches(char iupac_code, char nucleotide);
 static qkmer *qkmer_parse(char **str);
 static char *qkmer_to_str(const qkmer *c);
 static bool contains(char *pattern, char *c);
+static char *to_uppercase(char *data);
 
 /******************************************************************************
  * AUXILIARY FUNCTIONS IMPLEMENTATION
@@ -98,15 +99,15 @@ static qkmer *
 qkmer_parse(char **str)
 {
     int k;
-    char *data;
     bool ret = is_valid_qkmer(str);
     if (!ret)
         ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), errmsg("Invalid input syntax for type qkmer")));
-    data = strdup(*str);
-    k = (int)strlen(data);
+    char* upper_str;
+    upper_str = to_uppercase(*str);
+    k = (int)strlen(upper_str);
     if (k > QKMER_MAX_LENGTH)
         ereport(ERROR, (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION), errmsg("Input exceeds maximum length allowed for type qkmer (32)")));
-    return qkmer_make(k, data);
+    return qkmer_make(k, upper_str);
 }
 
 static char *

@@ -58,7 +58,6 @@ PG_FUNCTION_INFO_V1(spgist_kmer_choose);
 PG_FUNCTION_INFO_V1(spgist_kmer_picksplit);
 PG_FUNCTION_INFO_V1(spgist_kmer_inner_consistent);
 PG_FUNCTION_INFO_V1(spgist_kmer_leaf_consistent);
-// PG_FUNCTION_INFO_V1(spgist_kmer_compress);
 
 // ********** qkmer **********
 PG_FUNCTION_INFO_V1(qkmer_constructor);
@@ -79,7 +78,6 @@ dna_in(PG_FUNCTION_ARGS) {
 Datum
 dna_out(PG_FUNCTION_ARGS) {
     dna *seq = PG_GETARG_DNA_P(0);
-    // char *result = dna_to_string(seq);
     char *result = pstrdup(seq->sequence);
     PG_FREE_IF_COPY(seq, 0);
     PG_RETURN_CSTRING(result);
@@ -307,7 +305,6 @@ Datum
 spgist_kmer_config(PG_FUNCTION_ARGS) {
     spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0);
     spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
-    // elog(NOTICE, "config called");
 
     // cfgin->attType = TEXTOID; //type of data index will store (kmer is text)
     cfg->prefixType = TEXTOID;
@@ -386,7 +383,6 @@ spgist_kmer_choose(PG_FUNCTION_ARGS) {
     int      commonLen = 0;
     int16    nodeChar = 0;
     int      i = 0;
-    // elog(NOTICE, "choose called, in kmer: %s", inKmer->data);
 
     /* Check for prefix match, set nodeChar to first byte after prefix */
     if (in->hasPrefix)
@@ -518,7 +514,6 @@ spgist_kmer_picksplit(PG_FUNCTION_ARGS) {
     int         i,
                 commonLen;
     spgNodePtr *nodes;
-    // elog(NOTICE, "picksplit called, in kmer: %s", kmer0->data);
 
     /* Identify longest common prefix, if any */
     commonLen = kmer0->k;
@@ -599,7 +594,6 @@ spgist_kmer_picksplit(PG_FUNCTION_ARGS) {
         out->leafTupleDatums[nodes[i].i] = leafD;
         out->mapTuplesToNodes[nodes[i].i] = out->nNodes - 1;
     }
-    // elog(NOTICE, "picksplit reaches this part");
 
     PG_RETURN_VOID();
 }
@@ -629,18 +623,9 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
     * long-format reconstructed values.
     */
     reconstructedValue = (kmer *) DatumGetPointer(in->reconstructedValue);
-    // if (reconstructedValue == NULL) {
-    //     elog(NOTICE, "reconst is null");
-    // } else {
-    //     if (reconstructedValue->data == NULL) {
-    //         elog(NOTICE, "reconst->data is null");
-    //     } else {
-    //         elog(NOTICE, "Inner consistent: reconst val = %s", reconstructedValue->data);
-    //     }
-    // }
+
     // Assert(reconstructedValue == NULL ? in->level == 0 :
     //       (reconstructedValue->k) == in->level);
-    // elog(NOTICE, "inner_consistent called, rec kmer: %s", reconstructedKmer->data);
 
     maxReconstrLen = in->level + 1;
 
@@ -648,9 +633,6 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
         prefixKmer = (kmer *) DatumGetPointer(in->prefixDatum);
         prefixSize = (prefixKmer->k);
         maxReconstrLen += prefixSize;
-        // elog(NOTICE, "Inner consistent: prefix val = %s", prefixKmer->data);
-    } else {
-        // elog(NOTICE, "NO PREFIX");
     }
     // reconstrKmer = new reconstruction buffer
     // The previously reconstructed value and any prefix
@@ -659,18 +641,15 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
     SET_VARSIZE(reconstrKmer, VARHDRSZ + sizeof(int32) + maxReconstrLen + 1);
     reconstrKmer->k = maxReconstrLen;
 
-    // elog(NOTICE, "[BEFORE COPY] len reconstrKmer->data = %d", strlen(reconstrKmer->data));
     if (in->level)
         memcpy((reconstrKmer->data),
                (reconstructedValue->data),
                in->level);
-    // elog(NOTICE, "[BETWEEN COPY] Inner consistent, reconstrKmer->data = %s", reconstrKmer->data);
     if (prefixSize)
         memcpy(((char *) (reconstrKmer->data)) + in->level,
                 (prefixKmer->data),
                 prefixSize);
     /* last byte of reconstrKmer will be filled in below */
-    // elog(NOTICE, "[AFTER COPY] Inner consistent, reconstrKmer->data = %s, maxLen = %d, varsize = %d", reconstrKmer->data, maxReconstrLen, strlen(reconstrKmer->data));
     /*
      * Scan the child nodes.  For each one, complete the reconstructed value
      * and see if it's consistent with the query.  If so, emit an entry into
@@ -691,11 +670,7 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
         if (nodeChar <= 0) {
             thisLen = maxReconstrLen - 1;
         } else {
-            // memcpy((reconstrKmer->data) + maxReconstrLen - 1,
-                    // &nodeChar, 1);
             ((unsigned char *) (reconstrKmer->data))[maxReconstrLen - 1] = nodeChar;
-            // reconstrKmer->data[maxReconstrLen - 1] = nodeChar;
-            // elog(NOTICE, "[Child nodes] nodeChar: %c, data = %s", nodeChar, reconstrKmer->data);
             thisLen = maxReconstrLen;
             ((unsigned char *) (reconstrKmer->data))[thisLen] = '\0';
         }
@@ -726,7 +701,6 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
                     break;
                 }
             }
-            // elog(NOTICE, "Cmp: reconstr: %s, in: %s, r: %d", reconstrKmer->data, inKmer->data, r);
             
             switch (strategy)
             {
@@ -774,7 +748,6 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
 Datum
 spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
 {
-    // elog(NOTICE, "leaf consistent called");
     spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
     spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
     int         level = in->level;
@@ -788,17 +761,10 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
     out->recheck = false;
 
     leafValue = DatumGetKmerP(in->leafDatum);
-    // elog(NOTICE, "[leaf] leafVal = %s", leafValue->data);
 
     /* As above, in->reconstructedValue isn't toasted or short. */
     if (DatumGetPointer(in->reconstructedValue))
         reconstrValue = (kmer *) DatumGetPointer(in->reconstructedValue);
-
-    // if (reconstrValue == NULL) {
-    //     elog(NOTICE, "[leaf] reconstr is NULL");
-    // } else {
-    //     elog(NOTICE, "[leaf] reconstr = %s", reconstrValue->data);
-    // }
 
     // Assert(reconstrValue == NULL ? level == 0 :
     //     (reconstrValue->k) == level);
@@ -808,7 +774,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
     if ((leafValue->k) == 0 && level > 0)
     {
         fullValue = (reconstrValue->data);
-        // elog(NOTICE, "[leaf] CASE 1 full = %s", fullValue);
         out->leafValue = KmerPGetDatum(reconstrValue);
     }
     else
@@ -817,7 +782,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
         SET_VARSIZE(fullKmer, VARHDRSZ + sizeof(int32) + fullLen + 1);
         fullKmer->k = fullLen;
         fullValue = (fullKmer->data);
-        // elog(NOTICE, "[leaf] CASE 2 full = %s", fullValue);
         if (level)
             memcpy(fullValue, (reconstrValue->data), level);
         if ((leafValue->k) > 0)
@@ -825,7 +789,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
                 (leafValue->k));
         fullKmer->data[fullLen] = '\0';
         out->leafValue = KmerPGetDatum(fullKmer);
-        // elog(NOTICE, "[leaf] OUT LEAF = %s", fullKmer->data);
     }
 
     /* Perform the required comparison(s) */
@@ -874,7 +837,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
             else if (queryLen < fullLen)
                 r = 1;
         }
-        // elog(NOTICE, "[leaf] query: %s, fullVal: %s, r: %d", query->data, fullValue, r);
 
         switch (strategy)
         {
@@ -886,9 +848,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
                 break;
             case BTEqualStrategyNumber:
                 res = (r == 0);
-                // if (res) {
-                //     elog(NOTICE, "[leaf] FOUND");
-                // }
                 break;
             case BTGreaterEqualStrategyNumber:
                 res = (r >= 0);
@@ -912,16 +871,8 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
     } else {
         tmp_res = 0;
     }
-    // elog(NOTICE, "[leaf] to be returned: %d", tmp_res);
     PG_RETURN_BOOL(res);
 }
-
-// Datum
-// spgist_kmer_compress(PG_FUNCTION_ARGS) {
-//     kmer *inKmer = PG_GETARG_KMER_P(0);
-//     Datum compressedKmer = formTextDatum(inKmer->data, inKmer->k);
-//     PG_RETURN_DATUM(compressedKmer);
-// }
 
 // ********** qkmer **********
 Datum

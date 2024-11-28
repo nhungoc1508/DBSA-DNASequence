@@ -48,11 +48,11 @@ CREATE TABLE qkmers (
 INSERT INTO qkmers (qkmer)
 VALUES 
     ('AATGC'),       
-    ('AANNN'),       
-    ('WGTCA'),       
-    ('RACGTT'),      
-    ('NTGACGT'),     
-    ('ATGGCATCG');
+    ('AAnNN'),       
+    ('WgtCa'),       
+    ('rACGtt'),      
+    ('nTGAcGT'),     
+    ('ATcGCATcG');
 -- Test to see if values were inserted 
 SELECT * FROM qkmers;
 -- Test maximum length exceeded error (if greater than 32)
@@ -164,64 +164,66 @@ select * from sample_5mers where kmer = 'AAAGA';
 select * from sample_32mers limit 5;
 
 -- *** Equality search ***
-EXPLAIN ANALYZE SELECT * FROM sample_5mers WHERE kmer = 'AAGAA';
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC';
 -- **** With SP-GIST ****
---                                                                QUERY PLAN                                                               
--- ----------------------------------------------------------------------------------------------------------------------------------------
---  Index Only Scan using kmer_spgist_idx on sample_5mers  (cost=0.15..83.36 rows=2012 width=14) (actual time=0.566..0.570 rows=19 loops=1)
---    Index Cond: (kmer = 'AAGAA'::kmer)
+--                                                                 QUERY PLAN                                                                
+-- ------------------------------------------------------------------------------------------------------------------------------------------
+--  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..238.22 rows=4004 width=41) (actual time=0.050..0.051 rows=1 loops=1)
+--    Index Cond: (kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC'::kmer)
 --    Heap Fetches: 0
---  Planning Time: 0.129 ms
---  Execution Time: 0.955 ms
+--  Planning Time: 0.139 ms
+--  Execution Time: 0.086 ms
+-- (5 rows)
 -- **** Without SP-GIST ****
---                                                           QUERY PLAN                                                          
--- ------------------------------------------------------------------------------------------------------------------------------
---  Seq Scan on sample_5mers  (cost=10000000000.00..10000000072.29 rows=2012 width=14) (actual time=0.032..0.575 rows=21 loops=1)
---    Filter: (kmer = 'AAGAA'::kmer)
---    Rows Removed by Filter: 4002
---  Planning Time: 0.106 ms
---  Execution Time: 0.603 ms
+--                                                  QUERY PLAN                                                  
+-- -------------------------------------------------------------------------------------------------------------
+--  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=4004 width=41) (actual time=0.019..1.116 rows=1 loops=1)
+--    Filter: (kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC'::kmer)
+--    Rows Removed by Filter: 8008
+--  Planning Time: 0.095 ms
+--  Execution Time: 1.135 ms
 -- (5 rows)
 
 -- *** Prefix search ***
-EXPLAIN ANALYZE SELECT * FROM sample_5mers WHERE kmer ^@ 'ACG';
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
 -- **** With SP-GIST ****
---                                                                QUERY PLAN                                                                
--- -----------------------------------------------------------------------------------------------------------------------------------------
---  Index Only Scan using kmer_spgist_idx on sample_5mers  (cost=0.15..158.55 rows=1341 width=14) (actual time=1.323..1.698 rows=28 loops=1)
+--                                                                  QUERY PLAN                                                                 
+-- --------------------------------------------------------------------------------------------------------------------------------------------
+--  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..476.31 rows=2670 width=41) (actual time=2.257..2.807 rows=126 loops=1)
 --    Filter: starts_with('ACG'::kmer, kmer)
---    Rows Removed by Filter: 3995
+--    Rows Removed by Filter: 7883
 --    Heap Fetches: 0
---  Planning Time: 0.179 ms
---  Execution Time: 1.752 ms
+--  Planning Time: 0.132 ms
+--  Execution Time: 2.837 ms
 -- (6 rows)
 -- **** Without SP-GIST ****
---                                                           QUERY PLAN                                                          
--- ------------------------------------------------------------------------------------------------------------------------------
---  Seq Scan on sample_5mers  (cost=10000000000.00..10000000072.29 rows=1341 width=14) (actual time=0.069..0.599 rows=30 loops=1)
+--                                                   QUERY PLAN                                                   
+-- ---------------------------------------------------------------------------------------------------------------
+--  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=2670 width=41) (actual time=0.088..1.271 rows=126 loops=1)
 --    Filter: starts_with('ACG'::kmer, kmer)
---    Rows Removed by Filter: 3993
---  Planning Time: 0.156 ms
---  Execution Time: 0.626 ms
+--    Rows Removed by Filter: 7883
+--  Planning Time: 0.174 ms
+--  Execution Time: 1.301 ms
+-- (5 rows)
 
 -- *** Pattern matching using qkmer ***
-EXPLAIN ANALYZE SELECT * FROM sample_5mers WHERE 'ANGTA' @> kmer;
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 -- **** With SP-GIST ****
---                                                                QUERY PLAN                                                               
--- ----------------------------------------------------------------------------------------------------------------------------------------
---  Index Only Scan using kmer_spgist_idx on sample_5mers  (cost=0.15..158.55 rows=2012 width=14) (actual time=0.656..1.585 rows=5 loops=1)
+--                                                                 QUERY PLAN                                                                
+-- ------------------------------------------------------------------------------------------------------------------------------------------
+--  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..476.31 rows=4004 width=41) (actual time=2.149..2.150 rows=0 loops=1)
 --    Filter: ('ANGTA'::qkmer @> kmer)
---    Rows Removed by Filter: 4018
+--    Rows Removed by Filter: 8009
 --    Heap Fetches: 0
---  Planning Time: 0.182 ms
---  Execution Time: 1.637 ms
+--  Planning Time: 0.090 ms
+--  Execution Time: 2.171 ms
 -- (6 rows)
 -- **** Without SP-GIST ****
---                                                          QUERY PLAN                                                          
--- -----------------------------------------------------------------------------------------------------------------------------
---  Seq Scan on sample_5mers  (cost=10000000000.00..10000000072.29 rows=2012 width=14) (actual time=0.187..0.680 rows=5 loops=1)
+--                                                  QUERY PLAN                                                  
+-- -------------------------------------------------------------------------------------------------------------
+--  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=4004 width=41) (actual time=0.818..0.819 rows=0 loops=1)
 --    Filter: ('ANGTA'::qkmer @> kmer)
---    Rows Removed by Filter: 4018
---  Planning Time: 0.125 ms
---  Execution Time: 0.706 ms
+--    Rows Removed by Filter: 8009
+--  Planning Time: 0.087 ms
+--  Execution Time: 0.835 ms
 -- (5 rows)
