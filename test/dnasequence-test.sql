@@ -159,6 +159,9 @@ explain select * from kmers where kmer_tmp_c(kmer, 'ACGT') is true; -- ERROR
 -- **********************************
 CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 SET enable_seqscan = OFF;
+select * from sample_32mers where kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC';
+select * from sample_5mers where kmer = 'AAAGA';
+select * from sample_32mers limit 5;
 
 -- *** Equality search ***
 EXPLAIN ANALYZE SELECT * FROM sample_5mers WHERE kmer = 'AAGAA';

@@ -303,11 +303,13 @@ kmer_hash(PG_FUNCTION_ARGS) {
     PG_RETURN_INT32(hash);
 }
 // SP-GiST functions
+
+
 Datum
 spgist_kmer_config(PG_FUNCTION_ARGS) {
     spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0);
     spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
-    // elog(NOTICE, "config called");
+    elog(NOTICE, "config called");
 
     // cfgin->attType = TEXTOID; //type of data index will store (kmer is text)
     cfg->prefixType = TEXTOID;
@@ -386,7 +388,7 @@ spgist_kmer_choose(PG_FUNCTION_ARGS) {
     int      commonLen = 0;
     int16    nodeChar = 0;
     int      i = 0;
-    // elog(NOTICE, "choose called, in kmer: %s", inKmer->data);
+    //elog(NOTICE, "choose called, in kmer: %s", inKmer->data);
 
     /* Check for prefix match, set nodeChar to first byte after prefix */
     if (in->hasPrefix)
@@ -518,7 +520,7 @@ spgist_kmer_picksplit(PG_FUNCTION_ARGS) {
     int         i,
                 commonLen;
     spgNodePtr *nodes;
-    // elog(NOTICE, "picksplit called, in kmer: %s", kmer0->data);
+    //elog(NOTICE, "picksplit called, in kmer: %s", kmer0->data);
 
     /* Identify longest common prefix, if any */
     commonLen = kmer0->k;
@@ -599,7 +601,7 @@ spgist_kmer_picksplit(PG_FUNCTION_ARGS) {
         out->leafTupleDatums[nodes[i].i] = leafD;
         out->mapTuplesToNodes[nodes[i].i] = out->nNodes - 1;
     }
-    // elog(NOTICE, "picksplit reaches this part");
+    //elog(NOTICE, "picksplit reaches this part");
 
     PG_RETURN_VOID();
 }
@@ -627,55 +629,43 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
     * have a short varlena header.  This is okay because it must have been
     * created by a previous invocation of this routine, and we always emit
     * long-format reconstructed values.
-    */
+    */    
     reconstructedValue = (kmer *) DatumGetPointer(in->reconstructedValue);
-    // if (reconstructedValue == NULL) {
-    //     elog(NOTICE, "reconst is null");
-    // } else {
-    //     if (reconstructedValue->data == NULL) {
-    //         elog(NOTICE, "reconst->data is null");
-    //     } else {
-    //         elog(NOTICE, "Inner consistent: reconst val = %s", reconstructedValue->data);
-    //     }
-    // }
     // Assert(reconstructedValue == NULL ? in->level == 0 :
-    //       (reconstructedValue->k) == in->level);
-    // elog(NOTICE, "inner_consistent called, rec kmer: %s", reconstructedKmer->data);
+    //        (reconstructedValue->k) == in->level);    
 
     maxReconstrLen = in->level + 1;
 
     if (in->hasPrefix) {
-        prefixKmer = (kmer *) DatumGetPointer(in->prefixDatum);
+        prefixKmer = /*DatumGetKmerP*/ (kmer *) DatumGetPointer(in->prefixDatum);
         prefixSize = (prefixKmer->k);
         maxReconstrLen += prefixSize;
-        // elog(NOTICE, "Inner consistent: prefix val = %s", prefixKmer->data);
-    } else {
-        // elog(NOTICE, "NO PREFIX");
     }
-    // reconstrKmer = new reconstruction buffer
-    // The previously reconstructed value and any prefix
-    // will be copied to the new reconstruction buffer.
+
+    //reconstrKmer = palloc(sizeof(kmer));
+    //SET_VARSIZE(reconstrKmer, sizeof(kmer));
+
     reconstrKmer = (kmer *) palloc(VARHDRSZ + sizeof(int32) + maxReconstrLen + 1);
     SET_VARSIZE(reconstrKmer, VARHDRSZ + sizeof(int32) + maxReconstrLen + 1);
-    reconstrKmer->k = maxReconstrLen;
 
-    // elog(NOTICE, "[BEFORE COPY] len reconstrKmer->data = %d", strlen(reconstrKmer->data));
+    // reconstrKmer->k = in->level + prefixSize;
+
     if (in->level)
         memcpy((reconstrKmer->data),
                (reconstructedValue->data),
                in->level);
-    // elog(NOTICE, "[BETWEEN COPY] Inner consistent, reconstrKmer->data = %s", reconstrKmer->data);
     if (prefixSize)
         memcpy(((char *) (reconstrKmer->data)) + in->level,
                 (prefixKmer->data),
                 prefixSize);
     /* last byte of reconstrKmer will be filled in below */
-    // elog(NOTICE, "[AFTER COPY] Inner consistent, reconstrKmer->data = %s, maxLen = %d, varsize = %d", reconstrKmer->data, maxReconstrLen, strlen(reconstrKmer->data));
+    
     /*
      * Scan the child nodes.  For each one, complete the reconstructed value
      * and see if it's consistent with the query.  If so, emit an entry into
      * the output arrays.
      */
+    
     out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
     out->levelAdds = (int *) palloc(sizeof(int) * in->nNodes);
     out->reconstructedValues = (Datum *) palloc(sizeof(Datum) * in->nNodes);
@@ -691,14 +681,11 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
         if (nodeChar <= 0) {
             thisLen = maxReconstrLen - 1;
         } else {
-            // memcpy((reconstrKmer->data) + maxReconstrLen - 1,
-                    // &nodeChar, 1);
-            ((unsigned char *) (reconstrKmer->data))[maxReconstrLen - 1] = nodeChar;
-            // reconstrKmer->data[maxReconstrLen - 1] = nodeChar;
-            // elog(NOTICE, "[Child nodes] nodeChar: %c, data = %s", nodeChar, reconstrKmer->data);
+            ((unsigned char *) (reconstrKmer->data))[maxReconstrLen - 1] = nodeChar;            
             thisLen = maxReconstrLen;
             ((unsigned char *) (reconstrKmer->data))[thisLen] = '\0';
-        }
+            //elog(NOTICE, "Reconstructed k-mer: %s", reconstrKmer->data);
+        }        
         for (j = 0; j < in->nkeys; j++) {
             StrategyNumber strategy = in->scankeys[j].sk_strategy;
             kmer    *inKmer;
@@ -716,17 +703,17 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
 
             inKmer = DatumGetKmerP(in->scankeys[j].sk_argument);
             inSize = (inKmer->k);
+            r = 0;
+            //r = memcmp(reconstrKmer->data, inKmer->data,Min(inSize,thisLen));
 
             size_t minLen = Min(inSize, thisLen);
 
-            r = 0;
             for (size_t i = 0; i < minLen; i++) {
                 if (!nucleotide_matches(reconstrKmer->data[i], inKmer->data[i])) {
                     r = reconstrKmer->data[i] - inKmer->data[i];
                     break;
                 }
             }
-            // elog(NOTICE, "Cmp: reconstr: %s, in: %s, r: %d", reconstrKmer->data, inKmer->data, r);
             
             switch (strategy)
             {
@@ -767,20 +754,20 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
                 datumCopy(KmerPGetDatum(reconstrKmer), false, -1);
             out->nNodes++;
         }
-    }
+    }        
     PG_RETURN_VOID();
 }
 
 Datum
 spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
 {
-    // elog(NOTICE, "leaf consistent called");
     spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
-    spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
+    spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);    
+
     int         level = in->level;
-    kmer       *leafValue,
-               *reconstrValue = NULL;
-    char       *fullValue;
+    kmer        *leafValue,
+                *reconstrValue = NULL;
+    char        *fullValue;
     int         fullLen;
     bool        res;
     int         j;
@@ -788,17 +775,11 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
     out->recheck = false;
 
     leafValue = DatumGetKmerP(in->leafDatum);
-    // elog(NOTICE, "[leaf] leafVal = %s", leafValue->data);
 
     /* As above, in->reconstructedValue isn't toasted or short. */
     if (DatumGetPointer(in->reconstructedValue))
         reconstrValue = (kmer *) DatumGetPointer(in->reconstructedValue);
-
-    // if (reconstrValue == NULL) {
-    //     elog(NOTICE, "[leaf] reconstr is NULL");
-    // } else {
-    //     elog(NOTICE, "[leaf] reconstr = %s", reconstrValue->data);
-    // }
+        //reconstrValue = DatumGetKmerP(in->reconstructedValue);
 
     // Assert(reconstrValue == NULL ? level == 0 :
     //     (reconstrValue->k) == level);
@@ -808,24 +789,26 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
     if ((leafValue->k) == 0 && level > 0)
     {
         fullValue = (reconstrValue->data);
-        // elog(NOTICE, "[leaf] CASE 1 full = %s", fullValue);
         out->leafValue = KmerPGetDatum(reconstrValue);
     }
     else
     {
-        kmer       *fullKmer = (kmer *) palloc(VARHDRSZ + sizeof(int32) + fullLen + 1);
+        //kmer       *fullKmer = palloc(sizeof(kmer));
+        kmer *fullKmer = (kmer *) palloc(VARHDRSZ + sizeof(int32) + fullLen + 1);
         SET_VARSIZE(fullKmer, VARHDRSZ + sizeof(int32) + fullLen + 1);
+
         fullKmer->k = fullLen;
-        fullValue = (fullKmer->data);
-        // elog(NOTICE, "[leaf] CASE 2 full = %s", fullValue);
+        fullValue = (fullKmer->data);        
+
+
         if (level)
             memcpy(fullValue, (reconstrValue->data), level);
         if ((leafValue->k) > 0)
             memcpy(fullValue + level, (leafValue->data),
                 (leafValue->k));
         fullKmer->data[fullLen] = '\0';
+        elog(NOTICE, "Full k-mer: %s", fullKmer->data);
         out->leafValue = KmerPGetDatum(fullKmer);
-        // elog(NOTICE, "[leaf] OUT LEAF = %s", fullKmer->data);
     }
 
     /* Perform the required comparison(s) */
@@ -836,8 +819,10 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
         kmer       *query = DatumGetKmerP(in->scankeys[j].sk_argument);
         int         queryLen = (query->k);
         int         r;
-        kmer *leafKmer = DatumGetKmerP(out->leafValue);
+        kmer *leafKmer = /*(kmer *)*/ DatumGetKmerP(out->leafValue);
 
+        elog(NOTICE, "leaf_consistent called, Query: %s", query->data);
+        elog(NOTICE, "leaf_consistent called, leafKmer: %s", leafKmer->data);
         if (strategy == RTPrefixStrategyNumber)
         {
             /*
@@ -859,22 +844,23 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
 
         size_t minLen = Min(queryLen, fullLen);
 
-        r = 0;
-        for (size_t i = 0; i < minLen; i++) {
-            if (!nucleotide_matches(query->data[i], fullValue[i])) {
-                r = query->data[i] - fullValue[i];
-                break;
-            }
+        //r = memcmp(fullValue, query->data, Min(queryLen, fullLen));
+        r = 0; 
+
+    for (size_t i = 0; i < minLen; i++) {
+        if (!nucleotide_matches(query->data[i], fullValue[i])) {
+            r = query->data[i] - fullValue[i];
+            break;
         }
+    }
     
-        if (r == 0)
-        {
-            if (queryLen > fullLen)
-                r = -1;
-            else if (queryLen < fullLen)
-                r = 1;
-        }
-        // elog(NOTICE, "[leaf] query: %s, fullVal: %s, r: %d", query->data, fullValue, r);
+    if (r == 0)
+    {
+        if (queryLen > fullLen)
+            r = -1;
+        else if (queryLen < fullLen)
+            r = 1;
+    }
 
         switch (strategy)
         {
@@ -886,9 +872,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
                 break;
             case BTEqualStrategyNumber:
                 res = (r == 0);
-                // if (res) {
-                //     elog(NOTICE, "[leaf] FOUND");
-                // }
                 break;
             case BTGreaterEqualStrategyNumber:
                 res = (r >= 0);
@@ -906,22 +889,11 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
         if (!res)
             break;              /* no need to consider remaining conditions */
     }
-    int tmp_res;
-    if (res) {
-        tmp_res = 1;
-    } else {
-        tmp_res = 0;
-    }
-    // elog(NOTICE, "[leaf] to be returned: %d", tmp_res);
+
+    //elog(NOTICE, "leaf_consistent called, recVal: %s", reconstrValue->data);  
+
     PG_RETURN_BOOL(res);
 }
-
-// Datum
-// spgist_kmer_compress(PG_FUNCTION_ARGS) {
-//     kmer *inKmer = PG_GETARG_KMER_P(0);
-//     Datum compressedKmer = formTextDatum(inKmer->data, inKmer->k);
-//     PG_RETURN_DATUM(compressedKmer);
-// }
 
 // ********** qkmer **********
 Datum

@@ -110,7 +110,7 @@ static kmer *kmer_parse(char **str) {
     char *upper_str;
     upper_str = to_uppercase(*str);
     // data = strdup(upper_str);
-    k = (int)strlen(data);
+    k = (int)strlen(upper_str);
     if (k > MAX_KMER_LEN)
         ereport(ERROR, (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION), errmsg("Input exceeds maximum length allowed for type kmer (32)")));
     return kmer_make(k, upper_str);
