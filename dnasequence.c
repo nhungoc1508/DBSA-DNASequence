@@ -496,6 +496,12 @@ spgist_kmer_choose(PG_FUNCTION_ARGS) {
     PG_RETURN_VOID();
 }
 
+static inline int
+ pg_cmp_s16(int16 a, int16 b)
+ {
+     return (int32) a - (int32) b;
+ }
+
 /* qsort comparator to sort spgNodePtr structs by "c" */
 static int
 cmpNodePtr(const void *a, const void *b)
