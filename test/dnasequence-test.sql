@@ -100,7 +100,7 @@ CREATE INDEX kmer_hash_idx ON kmers USING hash (kmer);
 -- * IMPORT CSV DATA
 -- **********************************
 CREATE TABLE genomes(genome dna);
-\copy genomes FROM './test/genome_parsed.txt' WITH (FORMAT CSV)
+\copy genomes FROM './test/dna_parsed/genome_long_parsed.txt' WITH (FORMAT CSV)
 
 CREATE TABLE sample_32mers AS
     SELECT k.kmer FROM (
@@ -227,3 +227,35 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 --  Planning Time: 0.087 ms
 --  Execution Time: 0.835 ms
 -- (5 rows)
+
+
+-- **********************************
+-- * SP-GIST COMPARISON
+-- **********************************
+CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
+
+-- *** Prefix search ***
+\o test/prefix_search/seqscan.txt
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+\o
+SET enable_seqscan = OFF;
+\o test/prefix_search/indexscan.txt
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+\o
+
+-- *** Pattern matching using qkmer ***
+SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
+CREATE TEMPORARY TABLE pattern_match (LIKE sample_32mers);
+INSERT INTO pattern_match (
+    SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer
+);
+CREATE TABLE tmp as (
+    SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer
+);
+-- CREATE TABLE sample_32mers AS
+--     SELECT k.kmer FROM (
+--         SELECT generate_kmers(genome, 32)
+--         FROM genomes)
+--     AS k(kmer);
