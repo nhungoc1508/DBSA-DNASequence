@@ -11,7 +11,7 @@ INSERT INTO seqs (dna) VALUES
     ('CGTA'),
     ('TAGC');
 
--- Test to see if values were inserted 
+-- Test to see if values were inserted
 SELECT * FROM seqs;
 
 -- Test validation
@@ -36,7 +36,7 @@ INSERT INTO kmers (kmer) VALUES
     ('gat'),
     ('AcGGtTa');
 
--- Test to see if values were inserted 
+-- Test to see if values were inserted
 SELECT * FROM kmers;
 
 -- Test invalid input syntax error
@@ -74,21 +74,21 @@ CREATE TABLE qkmers (
 );
 
 INSERT INTO qkmers (qkmer)
-VALUES 
-    ('AATGC'),       
-    ('AAnNN'),       
-    ('WgtCa'),       
-    ('rACGtt'),      
-    ('nTGAcGT'),     
+VALUES
+    ('AATGC'),
+    ('AAnNN'),
+    ('WgtCa'),
+    ('rACGtt'),
+    ('nTGAcGT'),
     ('ATcGCATcG');
 
--- Test to see if values were inserted 
+-- Test to see if values were inserted
 SELECT * FROM qkmers;
 
 -- Test maximum length exceeded error (if greater than 32)
 INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN');  -- should fail
 
--- Test invalid nucleotide pattern matching 
+-- Test invalid nucleotide pattern matching
 -- This should raise an error since 'Z' is not a valid IUPAC code
 INSERT INTO qkmers (qkmer) VALUES ('ZTGCA');  -- should fail
 
@@ -111,7 +111,7 @@ FROM generate_kmers('ACGTACGTGATTCACGTACGT', 5) AS k(kmer)
 GROUP BY k.kmer
 ORDER BY count(*) DESC;
 
---  kmer  | count 
+--  kmer  | count
 ----------+-------
 --  TACGT |     2
 --  CGTAC |     2
@@ -138,7 +138,7 @@ SELECT sum(count) AS total_count,
        count(*) AS distinct_count,
        count(*) FILTER (WHERE count = 1) AS unique_count
 FROM kmers;
---  total_count | distinct_count | unique_count 
+--  total_count | distinct_count | unique_count
 -- -------------+----------------+--------------
 --           17 |             13 |            9
 
@@ -152,7 +152,7 @@ CREATE INDEX kmer_hash_idx ON kmers USING hash (kmer);
 -- * IMPORT CSV DATA
 -- **********************************
 CREATE TABLE genomes(genome dna);
-\copy genomes FROM './test/genome_parsed.txt' WITH (FORMAT CSV)
+\copy genomes FROM './test/dna_parsed/genome_long_parsed.txt' WITH (FORMAT CSV)
 
 CREATE TABLE sample_32mers AS
     SELECT k.kmer FROM (
@@ -219,7 +219,7 @@ select * from sample_32mers limit 5;
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC';
 
 -- **** With SP-GIST ****
---                                                                 QUERY PLAN                                                                
+--                                                                 QUERY PLAN
 -- ------------------------------------------------------------------------------------------------------------------------------------------
 --  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..238.22 rows=4004 width=41) (actual time=0.050..0.051 rows=1 loops=1)
 --    Index Cond: (kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC'::kmer)
@@ -228,7 +228,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer = 'AAAGAGGCTAACAGGCTTTTGA
 --  Execution Time: 0.086 ms
 -- (5 rows)
 -- **** Without SP-GIST ****
---                                                  QUERY PLAN                                                  
+--                                                  QUERY PLAN
 -- -------------------------------------------------------------------------------------------------------------
 --  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=4004 width=41) (actual time=0.019..1.116 rows=1 loops=1)
 --    Filter: (kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC'::kmer)
@@ -241,7 +241,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer = 'AAAGAGGCTAACAGGCTTTTGA
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
 
 -- **** With SP-GIST ****
---                                                                  QUERY PLAN                                                                 
+--                                                                  QUERY PLAN
 -- --------------------------------------------------------------------------------------------------------------------------------------------
 --  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..476.31 rows=2670 width=41) (actual time=2.257..2.807 rows=126 loops=1)
 --    Filter: starts_with('ACG'::kmer, kmer)
@@ -251,7 +251,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
 --  Execution Time: 2.837 ms
 -- (6 rows)
 -- **** Without SP-GIST ****
---                                                   QUERY PLAN                                                   
+--                                                   QUERY PLAN
 -- ---------------------------------------------------------------------------------------------------------------
 --  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=2670 width=41) (actual time=0.088..1.271 rows=126 loops=1)
 --    Filter: starts_with('ACG'::kmer, kmer)
@@ -264,7 +264,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 
 -- **** With SP-GIST ****
---                                                                 QUERY PLAN                                                                
+--                                                                 QUERY PLAN
 -- ------------------------------------------------------------------------------------------------------------------------------------------
 --  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..476.31 rows=4004 width=41) (actual time=2.149..2.150 rows=0 loops=1)
 --    Filter: ('ANGTA'::qkmer @> kmer)
@@ -274,7 +274,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 --  Execution Time: 2.171 ms
 -- (6 rows)
 -- **** Without SP-GIST ****
---                                                  QUERY PLAN                                                  
+--                                                  QUERY PLAN
 -- -------------------------------------------------------------------------------------------------------------
 --  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=4004 width=41) (actual time=0.818..0.819 rows=0 loops=1)
 --    Filter: ('ANGTA'::qkmer @> kmer)
@@ -285,33 +285,32 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 
 
 -- **********************************
--- * SYNTHETIC DATA
+-- * SP-GIST COMPARISON
 -- **********************************
--- Create table where kmers will be stored
-CREATE TABLE kmers_big (
-    id SERIAL PRIMARY KEY,
-    kmer kmer  
+CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
+
+-- *** Prefix search ***
+\o test/prefix_search/seqscan.txt
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+\o
+SET enable_seqscan = OFF;
+\o test/prefix_search/indexscan.txt
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+\o
+
+-- *** Pattern matching using qkmer ***
+SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
+CREATE TEMPORARY TABLE pattern_match (LIKE sample_32mers);
+INSERT INTO pattern_match (
+    SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer
 );
-
--- Create synthetic data
-/* The code inserts 1000000 random k-mers (with random lengths between 1 and 32) 
-into the kmers_big table in batches of 1 million rows */
-
-DO $$
-DECLARE
-    total_rows BIGINT := 0;
-    batch_size INT := 1000000;
-    max_rows BIGINT := 1000000; 
-BEGIN
-    WHILE total_rows < max_rows LOOP
-        INSERT INTO kmers_big (kmer)
-        SELECT generate_kmers('ACGTACGTACGTACGTACGTACGTACGTACGT', trunc(random() * 32 + 1)::int) FROM generate_series(1, batch_size);
-
-        total_rows := total_rows + batch_size;
-        RAISE NOTICE 'Inserted % rows so far', total_rows;
-    END LOOP;
-END;
-$$;
-
--- Verify the inserted data
-SELECT id, kmer FROM kmers_big LIMIT 10;
+CREATE TABLE tmp as (
+    SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer
+);
+-- CREATE TABLE sample_32mers AS
+--     SELECT k.kmer FROM (
+--         SELECT generate_kmers(genome, 32)
+--         FROM genomes)
+--     AS k(kmer);

@@ -1,26 +1,3 @@
-# #!/bin/bash
-
-# # Check if the correct number of arguments is provided
-# if [ $# -ne 2 ]; then
-#   echo "Usage: $0 <input_file> <output_file>"
-#   exit 1
-# fi
-
-# # Input and output files from command line arguments
-# input_file="$1"
-# output_file="$2"
-
-# # Check if the input file exists
-# if [ ! -f "$input_file" ]; then
-#   echo "Error: File '$input_file' not found."
-#   exit 1
-# fi
-
-# # Read the file, remove spaces and newlines, and write to the output file
-# tr -d ' \n' < "$input_file" > "$output_file"
-
-# echo "Output written to $output_file"
-
 #!/bin/bash
 
 # Check if the correct number of arguments are provided
@@ -38,8 +15,13 @@ awk '{
     $1 = ""; 
     # Remove all spaces in the remaining line
     gsub(/ /, "");
-    # Concatenate the cleaned line
-    printf "%s", $0
+    # Append the cleaned line to the result string
+    result = result $0
+} END {
+    # Write chunks of 8000 characters to the output
+    for (i = 1; i <= length(result); i += 8000) {
+        print substr(result, i, 8000)
+    }
 }' "$input_file" > "$output_file"
 
 echo "Processing complete. The output is written to $output_file"
