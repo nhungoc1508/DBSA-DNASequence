@@ -314,3 +314,35 @@ CREATE TABLE tmp as (
 --         SELECT generate_kmers(genome, 32)
 --         FROM genomes)
 --     AS k(kmer);
+
+-- * SYNTHETIC DATA
+-- **********************************
+-- Create table where kmers will be stored
+CREATE TABLE kmers_big (
+    id SERIAL PRIMARY KEY,
+    kmer kmer  
+);
+
+-- Create synthetic data
+/* The code inserts 1000000 random k-mers (with random lengths between 1 and 32) 
+into the kmers_big table in batches of 1 million rows */
+
+DO $$
+DECLARE
+    total_rows BIGINT := 0;
+    batch_size INT := 1000000;
+    max_rows BIGINT := 1000000; 
+BEGIN
+    WHILE total_rows < max_rows LOOP
+        INSERT INTO kmers_big (kmer)
+        SELECT generate_kmers('ACGTACGTACGTACGTACGTACGTACGTACGT', trunc(random() * 32 + 1)::int) FROM generate_series(1, batch_size);
+
+        total_rows := total_rows + batch_size;
+        RAISE NOTICE 'Inserted % rows so far', total_rows;
+    END LOOP;
+END;
+$$;
+
+-- Verify the inserted data
+SELECT id, kmer FROM kmers_big LIMIT 10;
+
