@@ -7,11 +7,21 @@ CREATE TABLE seqs(id SERIAL PRIMARY KEY, dna dna);
 INSERT INTO seqs (dna) VALUES
     ('AT'),
     ('ATG'),
-    ('ATGC');
+    ('ATGC'),
+    ('CGTA'),
+    ('TAGC');
+
+-- Test to see if values were inserted 
+SELECT * FROM seqs;
+
 -- Test validation
-INSERT INTO seqs VALUES (4,'ATGX');
+-- Invalid characters
+INSERT INTO seqs VALUES (6,'ATGXAY'); -- Should fail
+
+-- Test length() function
 SELECT dna, length(dna) FROM seqs;
--- Generate
+
+-- Generate kmers from DNA
 SELECT k.kmer
 FROM generate_kmers('ACGTACGT', 6) AS k(kmer);
 
@@ -25,17 +35,34 @@ INSERT INTO kmers (kmer) VALUES
     ('acgt'),
     ('gat'),
     ('AcGGtTa');
+
+-- Test to see if values were inserted 
+SELECT * FROM kmers;
+
 -- Test invalid input syntax error
-INSERT INTO kmers (kmer) VALUES ('ABCD');
+INSERT INTO kmers (kmer) VALUES ('ABCD'); -- Should fail
+INSERT INTO kmers (kmer) VALUES ('12345'); -- Should fail
+
 -- Test maximum length exceeded error
-INSERT INTO kmers (kmer) VALUES ('ACGTAACGTAACGTAACGTAACGTAACGTAACGTA'); -- length = 35
+INSERT INTO kmers (kmer) VALUES ('ACGTAACGTAACGTAACGTAACGTAACGTAACGTA'); -- should fail
+-- Valid edge case (length exactly 32)
+INSERT INTO kmers (kmer) VALUES ('ACGTACGTACGTACGTACGTACGTACGTACGT'); -- Should pass
+
 -- Test length()
 SELECT kmer, length(kmer) FROM kmers;
+
 -- Test equals()
 SELECT * FROM kmers WHERE equals('ACGTA', kmer);
 SELECT * FROM kmers WHERE kmer = 'ACGTA';
+-- Test equals() with lowercase
+SELECT * FROM kmers WHERE equals('acgt', kmer);
+SELECT * FROM kmers WHERE kmer = 'acgt';
+
 -- Test startswith()
 SELECT * FROM kmers WHERE starts_with('ACG', kmer);
+SELECT * FROM kmers WHERE kmer ^@ 'ACG';
+-- Test startswith() with mixed cases
+SELECT * FROM kmers WHERE starts_with('gAT', kmer);
 SELECT * FROM kmers WHERE kmer ^@ 'gAT';
 
 -- **********************************
@@ -45,6 +72,7 @@ CREATE TABLE qkmers (
     id SERIAL PRIMARY KEY,
     qkmer qkmer
 );
+
 INSERT INTO qkmers (qkmer)
 VALUES 
     ('AATGC'),       
@@ -53,20 +81,27 @@ VALUES
     ('rACGtt'),      
     ('nTGAcGT'),     
     ('ATcGCATcG');
+
 -- Test to see if values were inserted 
 SELECT * FROM qkmers;
+
 -- Test maximum length exceeded error (if greater than 32)
-INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN');  
+INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN');  -- should fail
+
 -- Test invalid nucleotide pattern matching 
 -- This should raise an error since 'Z' is not a valid IUPAC code
-INSERT INTO qkmers (qkmer) VALUES ('ZTGCA');  
--- Test length of a qkmer that is exactly 32 (maximum allowed length), should work
+INSERT INTO qkmers (qkmer) VALUES ('ZTGCA');  -- should fail
+
+-- Test length of a qkmer that is exactly 32 (maximum allowed length)
 INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGRYSWKMACGTNNGT');
+
 -- Test length function
 SELECT qkmer, length(qkmer) FROM qkmers;
+
 -- Test contains()
 SELECT * FROM kmers WHERE contains('ANGTA', kmer);
 SELECT * FROM kmers WHERE 'dhbbv'@> kmer;
+SELECT * FROM kmers WHERE 'gnt'@> kmer;
 
 -- **********************************
 -- * GROUP BY
@@ -75,6 +110,23 @@ SELECT k.kmer, count(*)
 FROM generate_kmers('ACGTACGTGATTCACGTACGT', 5) AS k(kmer)
 GROUP BY k.kmer
 ORDER BY count(*) DESC;
+
+--  kmer  | count 
+----------+-------
+--  TACGT |     2
+--  CGTAC |     2
+--  GTACG |     2
+--  ACGTA |     2
+--  ATTCA |     1
+--  TCACG |     1
+--  CACGT |     1
+--  CGTGA |     1
+--  ACGTG |     1
+--  TTCAC |     1
+--  GTGAT |     1
+--  TGATT |     1
+--  GATTC |     1
+
 
 WITH kmers AS (
     SELECT k.kmer, count(*)
@@ -165,6 +217,7 @@ select * from sample_32mers limit 5;
 
 -- *** Equality search ***
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC';
+
 -- **** With SP-GIST ****
 --                                                                 QUERY PLAN                                                                
 -- ------------------------------------------------------------------------------------------------------------------------------------------
@@ -186,6 +239,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer = 'AAAGAGGCTAACAGGCTTTTGA
 
 -- *** Prefix search ***
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+
 -- **** With SP-GIST ****
 --                                                                  QUERY PLAN                                                                 
 -- --------------------------------------------------------------------------------------------------------------------------------------------
@@ -208,6 +262,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
 
 -- *** Pattern matching using qkmer ***
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
+
 -- **** With SP-GIST ****
 --                                                                 QUERY PLAN                                                                
 -- ------------------------------------------------------------------------------------------------------------------------------------------
@@ -227,3 +282,36 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 --  Planning Time: 0.087 ms
 --  Execution Time: 0.835 ms
 -- (5 rows)
+
+
+-- **********************************
+-- * SYNTHETIC DATA
+-- **********************************
+-- Create table where kmers will be stored
+CREATE TABLE kmers_big (
+    id SERIAL PRIMARY KEY,
+    kmer kmer  
+);
+
+-- Create synthetic data
+/* The code inserts 1000000 random k-mers (with random lengths between 1 and 32) 
+into the kmers_big table in batches of 1 million rows */
+
+DO $$
+DECLARE
+    total_rows BIGINT := 0;
+    batch_size INT := 1000000;
+    max_rows BIGINT := 1000000; 
+BEGIN
+    WHILE total_rows < max_rows LOOP
+        INSERT INTO kmers_big (kmer)
+        SELECT generate_kmers('ACGTACGTACGTACGTACGTACGTACGTACGT', trunc(random() * 32 + 1)::int) FROM generate_series(1, batch_size);
+
+        total_rows := total_rows + batch_size;
+        RAISE NOTICE 'Inserted % rows so far', total_rows;
+    END LOOP;
+END;
+$$;
+
+-- Verify the inserted data
+SELECT id, kmer FROM kmers_big LIMIT 10;

@@ -303,15 +303,15 @@ kmer_hash(PG_FUNCTION_ARGS) {
 // SP-GiST functions
 Datum
 spgist_kmer_config(PG_FUNCTION_ARGS) {
-    spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0);
+    // spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0);
     spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
     // cfgin->attType = TEXTOID; //type of data index will store (kmer is text)
     cfg->prefixType = TEXTOID;
-    cfg->labelType = INT2OID; // labels determine how data is partitioned. we can partication by the characters(A,G,C,...), should we use a charoid or textoid?
+    cfg->labelType = INT2OID; // labels determine how data is partitioned
     // cfg->leafType = TEXTOID;
     cfg->canReturnData = true; // true so index can return data when queried
-    cfg->longValuesOK = false; // index should support long values (is 32 nucleotides considered as long)
+    cfg->longValuesOK = false; 
     PG_RETURN_VOID();
 }
 
