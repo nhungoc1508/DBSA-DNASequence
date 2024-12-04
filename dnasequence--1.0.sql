@@ -9,7 +9,7 @@
 CREATE OR REPLACE FUNCTION dna_in(cstring) 
     RETURNS dna 
     AS 'MODULE_PATHNAME', 'dna_in' 
-    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+    LANGUAGE C IMMUTABLE;
 
 CREATE OR REPLACE FUNCTION dna_out(dna) 
     RETURNS cstring 
@@ -205,7 +205,7 @@ CREATE FUNCTION length(qkmer)
 CREATE FUNCTION contains(qkmer, kmer)
     RETURNS boolean
     AS 'MODULE_PATHNAME', 'qkmer_contains'
-    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+    LANGUAGE C IMMUTABLE STRICT PARALLEL RESTRICTED;
 
 /******************************************************************************
  * OPERATORS (kmer)
