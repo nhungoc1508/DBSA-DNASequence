@@ -15,11 +15,24 @@ INSERT INTO seqs (dna) VALUES
 SELECT * FROM seqs;
 
 -- Test validation
+-- Insert a valid DNA sequence with only one character
+INSERT INTO seqs (dna) VALUES ('A'); 
+-- Insert a DNA sequence with repeated valid characters
+INSERT INTO seqs (dna) VALUES ('AAAAAAA'); 
+-- Insert very long sequences
+INSERT INTO seqs (dna) VALUES (('ACGT' || repeat('GT', 3500))::text::dna);
+
+
 -- Invalid characters
 INSERT INTO seqs VALUES (6,'ATGXAY'); -- Should fail
+INSERT INTO seqs (dna) VALUES (''); -- Should fail 
 
 -- Test length() function
 SELECT dna, length(dna) FROM seqs;
+SELECT dna, length(dna) FROM seqs WHERE length(dna) = 1;
+SELECT length(dna) FROM seqs WHERE length(dna) > 5000;
+
+
 
 -- Generate kmers from DNA
 SELECT k.kmer
@@ -39,17 +52,25 @@ INSERT INTO kmers (kmer) VALUES
 -- Test to see if values were inserted
 SELECT * FROM kmers;
 
--- Test invalid input syntax error
-INSERT INTO kmers (kmer) VALUES ('ABCD'); -- Should fail
-INSERT INTO kmers (kmer) VALUES ('12345'); -- Should fail
-
--- Test maximum length exceeded error
-INSERT INTO kmers (kmer) VALUES ('ACGTAACGTAACGTAACGTAACGTAACGTAACGTA'); -- should fail
+-- Test validation 
+-- Insert only one character
+INSERT INTO kmers (kmer) VALUES ('A')
 -- Valid edge case (length exactly 32)
 INSERT INTO kmers (kmer) VALUES ('ACGTACGTACGTACGTACGTACGTACGTACGT'); -- Should pass
 
+-- Test invalid input syntax error
+INSERT INTO kmers (kmer) VALUES ('ABCD'); -- Should fail
+INSERT INTO kmers (kmer) VALUES ('12345'); -- Should fail
+INSERT INTO kmers (kmer) VALUES ('ACGTX'); -- Should fail due to 'X'
+INSERT INTO kmers (kmer) VALUES (''); -- Should fail 
+-- Test maximum length exceeded error
+INSERT INTO kmers (kmer) VALUES ('ACGTAACGTAACGTAACGTAACGTAACGTAACGTA'); -- should fail
+
+
 -- Test length()
 SELECT kmer, length(kmer) FROM kmers;
+SELECT kmer, length(kmer) FROM kmers WHERE length(kmer) BETWEEN 1 AND 32;
+
 
 -- Test equals()
 SELECT * FROM kmers WHERE equals('ACGTA', kmer);
@@ -57,6 +78,10 @@ SELECT * FROM kmers WHERE kmer = 'ACGTA';
 -- Test equals() with lowercase
 SELECT * FROM kmers WHERE equals('acgt', kmer);
 SELECT * FROM kmers WHERE kmer = 'acgt';
+-- Test invalid codes
+SELECT * FROM kmers WHERE equals('ACGTX', kmer); -- Should fail 
+SELECT * FROM kmers WHERE kmer = '12345'; -- Should fail 
+
 
 -- Test startswith()
 SELECT * FROM kmers WHERE starts_with('ACG', kmer);
@@ -64,6 +89,10 @@ SELECT * FROM kmers WHERE kmer ^@ 'ACG';
 -- Test startswith() with mixed cases
 SELECT * FROM kmers WHERE starts_with('gAT', kmer);
 SELECT * FROM kmers WHERE kmer ^@ 'gAT';
+-- Test invalid codes
+SELECT * FROM kmers WHERE starts_with('ACGTX', kmer); -- Should fail 
+SELECT * FROM kmers WHERE kmer ^@ '123'; -- Should fail 
+
 
 -- **********************************
 -- * qkmer
@@ -85,23 +114,34 @@ VALUES
 -- Test to see if values were inserted
 SELECT * FROM qkmers;
 
--- Test maximum length exceeded error (if greater than 32)
-INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN');  -- should fail
-
--- Test invalid nucleotide pattern matching
--- This should raise an error since 'Z' is not a valid IUPAC code
-INSERT INTO qkmers (qkmer) VALUES ('ZTGCA');  -- should fail
-
+-- Test validation
 -- Test length of a qkmer that is exactly 32 (maximum allowed length)
 INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGRYSWKMACGTNNGT');
 
+
+-- Test invalid nucleotides
+INSERT INTO qkmers (qkmer) VALUES ('ZTGCA');  -- should fail
+-- Test maximum length exceeded error (if greater than 32)
+INSERT INTO qkmers (qkmer) VALUES ('AATGCGTATGCTAGTACGNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN');  -- should fail
+INSERT INTO qkmers (qkmer) VALUES (''); -- Should fail 
+
 -- Test length function
 SELECT qkmer, length(qkmer) FROM qkmers;
+SELECT kmer, length(kmer) FROM kmers WHERE length(kmer) BETWEEN 1 AND 32;
+
 
 -- Test contains()
 SELECT * FROM kmers WHERE contains('ANGTA', kmer);
 SELECT * FROM kmers WHERE 'dhbbv'@> kmer;
 SELECT * FROM kmers WHERE 'gnt'@> kmer;
+-- Test invalid codes
+SELECT * FROM kmers WHERE contains('ACGTX', kmer); -- Should fail
+SELECT * FROM kmers WHERE 'QWDP'@> kmer;
+
+-- Test contains and equals to
+SELECT * FROM kmers WHERE contains('ACGTA', kmer) AND equals('ACGTA', kmer);
+-- Test contains and starts with
+SELECT * FROM kmers WHERE contains('NNGT', kmer) AND starts_with('ACG', kmer); 
 
 -- **********************************
 -- * GROUP BY
@@ -127,6 +167,28 @@ ORDER BY count(*) DESC;
 --  TGATT |     1
 --  GATTC |     1
 
+
+-- Test with invalid characters -- should fail
+SELECT k.kmer, count(*)
+FROM generate_kmers('AOISJCGTGATTSADFDCACGTACAFGT', 5) AS k(kmer)
+GROUP BY k.kmer
+ORDER BY count(*) DESC;
+-- ERROR:  Invalid character in DNA sequence
+-- LINE 2: FROM generate_kmers('AOISJCGTGATTSADFDCACGTACAFGT', 5) AS k(...
+--                             ^
+
+-- Test with invalid length (33) -- should fail
+SELECT k.kmer, count(*)
+FROM generate_kmers('ACGTACGTGATTCACGTACGT', 33) AS k(kmer)
+GROUP BY k.kmer
+ORDER BY count(*) DESC;
+
+-- Test with invalid length (0) -- should fail
+SELECT k.kmer, count(*)
+FROM generate_kmers('ACGTACGTGATTCACGTACGT', 0) AS k(kmer)
+GROUP BY k.kmer
+ORDER BY count(*) DESC;
+-- ERROR:  Invalid k value: must be between 1 and min(sequence length, 32)
 
 WITH kmers AS (
     SELECT k.kmer, count(*)
@@ -324,9 +386,6 @@ CREATE TABLE kmers_big (
 );
 
 -- Create synthetic data
-/* The code inserts 1000000 random k-mers (with random lengths between 1 and 32) 
-into the kmers_big table in batches of 1 million rows */
-
 DO $$
 DECLARE
     total_rows BIGINT := 0;
@@ -344,5 +403,36 @@ END;
 $$;
 
 -- Verify the inserted data
+SELECT COUNT(*) FROM kmers_big;
 SELECT id, kmer FROM kmers_big LIMIT 10;
+
+--- Test kmers_big
+SELECT id, kmer, length(kmer) FROM kmers_big LIMIT 20;
+SELECT count(*) FROM kmers_big WHERE length(kmer) > 32; -- ensure no kmer is greater than 32
+SELECT id, kmer, length(kmer) FROM kmers_big WHERE length(kmer) = 32 LIMIT 20;
+SELECT count(*) FROM kmers_big WHERE equals('ACGTACGT', kmer);
+SELECT count(*) FROM kmers_big WHERE starts_with('ACG', kmer);
+SELECT count(*) FROM kmers_big WHERE contains('NGT', kmer);
+
+-- Count distinct kmers 
+SELECT kmer, COUNT(*) 
+FROM kmers_big
+GROUP BY kmer
+ORDER BY COUNT(*) DESC
+LIMIT 10;
+-- Check distribution of kmers_big
+SELECT length(kmer) AS kmer_length, COUNT(*) 
+FROM kmers_big
+GROUP BY length(kmer)
+ORDER BY length(kmer);
+-- Check unique kmers
+SELECT DISTINCT kmer FROM kmers_big ORDER BY kmer LIMIT 10;
+-- Check if there are empty kmers
+SELECT * FROM kmers_big WHERE kmer = '';
+
+
+-- Performance Test
+EXPLAIN ANALYZE SELECT * FROM kmers_big WHERE kmer = 'ACGTTGCA';
+EXPLAIN ANALYZE SELECT * FROM kmers_big WHERE kmer ^@ 'ACG';
+
 
