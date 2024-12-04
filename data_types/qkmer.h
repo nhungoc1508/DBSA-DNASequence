@@ -124,10 +124,8 @@ static bool contains(char *pattern, char *c) {
         if (!nucleotide_matches(pattern[i], c[i])) {
             return false;
         }
-        else {
-            return true;
-        }
     }
+    return true;
 }
 
 #endif // QKMER_H
