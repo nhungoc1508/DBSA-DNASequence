@@ -72,6 +72,11 @@ PG_FUNCTION_INFO_V1(qkmer_contains);
 Datum
 dna_in(PG_FUNCTION_ARGS) {
     char *str = PG_GETARG_CSTRING(0);
+    if (str == NULL || strlen(str) == 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                 errmsg("Input to dna type cannot be NULL or empty")));
+    }
     PG_RETURN_DNA_P(dna_parse(str));
 }
 
