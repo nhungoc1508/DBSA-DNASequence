@@ -17,7 +17,7 @@ char nucleotides[VALID_NUCLEOTIDES * 2 + 1] = {'A', 'C', 'G', 'T', 'a', 'c', 'g'
 typedef struct {
     int32 vl_len_;
     int32 k;
-    char data[32];
+    char data[33];
 } kmer;
 
 /******************************************************************************

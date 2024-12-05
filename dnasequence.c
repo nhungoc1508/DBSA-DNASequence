@@ -43,6 +43,7 @@ PG_FUNCTION_INFO_V1(kmer_constructor);
 PG_FUNCTION_INFO_V1(kmer_length);
 PG_FUNCTION_INFO_V1(kmer_equals);
 PG_FUNCTION_INFO_V1(kmer_starts_with);
+PG_FUNCTION_INFO_V1(kmer_starts_with_swapped);
 PG_FUNCTION_INFO_V1(generate_kmers);
 // Additional functions for the BTree operator class
 PG_FUNCTION_INFO_V1(kmer_lt);
@@ -63,6 +64,10 @@ PG_FUNCTION_INFO_V1(spgist_kmer_leaf_consistent);
 PG_FUNCTION_INFO_V1(qkmer_constructor);
 PG_FUNCTION_INFO_V1(qkmer_length);
 PG_FUNCTION_INFO_V1(qkmer_contains);
+PG_FUNCTION_INFO_V1(qkmer_contains_swapped);
+
+// ********** Selectivity functions **********
+PG_FUNCTION_INFO_V1(kmer_starts_with_sel);
 
 /******************************************************************************
  * IMPLEMENTATION
@@ -167,6 +172,21 @@ kmer_starts_with(PG_FUNCTION_ARGS) {
     }
     PG_FREE_IF_COPY(prefix, 0);
     PG_FREE_IF_COPY(c, 1);   
+    PG_RETURN_BOOL(result);
+}
+
+Datum
+kmer_starts_with_swapped(PG_FUNCTION_ARGS) {
+    kmer *c = PG_GETARG_KMER_P(0);
+    kmer *prefix = PG_GETARG_KMER_P(1);
+    bool result;
+    if (prefix->k > c->k) {
+        result = false;
+    } else {
+        result = starts_with(prefix->data, c->data);
+    }
+    PG_FREE_IF_COPY(prefix, 1);
+    PG_FREE_IF_COPY(c, 0);   
     PG_RETURN_BOOL(result);
 }
 
@@ -501,11 +521,11 @@ spgist_kmer_choose(PG_FUNCTION_ARGS) {
     PG_RETURN_VOID();
 }
 
-static inline int
- pg_cmp_s16(int16 a, int16 b)
- {
-     return (int32) a - (int32) b;
- }
+// static inline int
+//  pg_cmp_s16(int16 a, int16 b)
+//  {
+//      return (int32) a - (int32) b;
+//  }
 
 /* qsort comparator to sort spgNodePtr structs by "c" */
 static int
@@ -613,6 +633,7 @@ Datum
 spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
     // 
     spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
+    // elog(NOTICE, "inner called, nkeys: %d", in->nkeys);
     spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
     // bool        collate_is_c = pg_newlocale_from_collation(PG_GET_COLLATION())->collate_is_c;
     kmer       *reconstructedValue;
@@ -648,6 +669,7 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
     // reconstrKmer = new reconstruction buffer
     // The previously reconstructed value and any prefix
     // will be copied to the new reconstruction buffer.
+    // elog(NOTICE, "[inner] reconstrKmer maxReconstrLen: %d, palloc: %d, pfsize: %d, in->level: %d", maxReconstrLen, VARHDRSZ + sizeof(int32) + maxReconstrLen + 1, prefixSize, in->level);
     reconstrKmer = (kmer *) palloc(VARHDRSZ + sizeof(int32) + maxReconstrLen + 1);
     SET_VARSIZE(reconstrKmer, VARHDRSZ + sizeof(int32) + maxReconstrLen + 1);
     reconstrKmer->k = maxReconstrLen;
@@ -683,11 +705,12 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
         } else {
             ((unsigned char *) (reconstrKmer->data))[maxReconstrLen - 1] = nodeChar;
             thisLen = maxReconstrLen;
-            ((unsigned char *) (reconstrKmer->data))[thisLen] = '\0';
         }
+        ((unsigned char *) (reconstrKmer->data))[thisLen] = '\0';
         for (j = 0; j < in->nkeys; j++) {
             StrategyNumber strategy = in->scankeys[j].sk_strategy;
             kmer    *inKmer;
+            qkmer   *inQkmer;
             int      inSize;
             int      r;
 
@@ -705,36 +728,46 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
 
             size_t minLen = Min(inSize, thisLen);
 
-            r = 0;
-            for (size_t i = 0; i < minLen; i++) {
-                if (!nucleotide_matches(reconstrKmer->data[i], inKmer->data[i])) {
-                    r = reconstrKmer->data[i] - inKmer->data[i];
-                    break;
-                }
-            }
             
             switch (strategy)
             {
-                case BTLessStrategyNumber:
-                case BTLessEqualStrategyNumber:
-                    if (r > 0)
-                        res = false;
-                    break;
                 case BTEqualStrategyNumber:
+                    r = 0;
+                    for (size_t i = 0; i < minLen; i++) {
+                        if (!nucleotide_matches(reconstrKmer->data[i], inKmer->data[i])) {
+                            r = reconstrKmer->data[i] - inKmer->data[i];
+                            break;
+                        }
+                    }
                     if (r != 0 || inSize < thisLen)
                         res = false;
                     break;
-                case BTGreaterEqualStrategyNumber:
-                case BTGreaterStrategyNumber:
-                    if (r < 0)
+                case BTStartsWithStrategyNumber:
+                    r = 0;
+                    r = strncmp(inKmer->data, reconstrKmer->data, minLen);
+                    res = (r == 0);
+                    break;
+                case BTContainsStrategyNumber:
+                    inQkmer = DatumGetQkmerP(in->scankeys[j].sk_argument);
+                    inSize = inQkmer->k;
+                    minLen = Min(inSize, thisLen);
+                    r = 0;
+                    for (size_t i = 0; i < minLen; i++) {
+                        if (!nucleotide_matches(inQkmer->data[i], reconstrKmer->data[i])) {
+                            r = reconstrKmer->data[i] - inKmer->data[i];
+                            break;
+                        }
+                    }
+                    if (r != 0 || inSize < thisLen)
                         res = false;
+                    // elog(NOTICE, "[inner] CONTAINS: inQkmer: %s, k: %d, minLen: %d, reconst: %s, inSize: %d, thisLen: %d, r: %d", inQkmer->data, inQkmer->k, minLen, reconstrKmer->data, inSize, thisLen, r);
                     break;
                 case RTPrefixStrategyNumber:
                     if (r != 0)
                         res = false;
                     break;
                 default:
-                    elog(ERROR, "unrecognized strategy number: %d",
+                    elog(ERROR, "[Inner] unrecognized strategy number: %d",
                         in->scankeys[j].sk_strategy);
                     break;
             }
@@ -748,6 +781,10 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
             out->nodeNumbers[out->nNodes] = i;
             out->levelAdds[out->nNodes] = thisLen - in->level;
             SET_VARSIZE(reconstrKmer, VARHDRSZ + sizeof(int32) + thisLen + 1);
+            // elog(NOTICE, "[inner] out node: %s", reconstrKmer->data);
+            // if (thisLen == 32) {
+            //     elog(NOTICE, "[inner], reconstrKmer: %s", reconstrKmer->data);
+            // }
             out->reconstructedValues[out->nNodes] =
                 datumCopy(KmerPGetDatum(reconstrKmer), false, -1);
             out->nNodes++;
@@ -760,6 +797,7 @@ Datum
 spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
 {
     spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
+    // elog(NOTICE, "leaf called, nkeys: %d", in->nkeys);
     spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
     int         level = in->level;
     kmer       *leafValue,
@@ -774,14 +812,19 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
     leafValue = DatumGetKmerP(in->leafDatum);
 
     /* As above, in->reconstructedValue isn't toasted or short. */
-    if (DatumGetPointer(in->reconstructedValue))
+    if (DatumGetPointer(in->reconstructedValue)) {
         reconstrValue = (kmer *) DatumGetPointer(in->reconstructedValue);
+        // elog(NOTICE, "[leaf], leaf d: %s, leaf k: %d, level: %d, reconst: %s", leafValue->data, leafValue->k, level, reconstrValue->data);
+    } else {
+        // elog(NOTICE, "[leaf], leaf d: %s, leaf k: %d, level: %d, reconst NULL", leafValue->data, leafValue->k, level);
+    }
 
     // Assert(reconstrValue == NULL ? level == 0 :
     //     (reconstrValue->k) == level);
 
     /* Reconstruct the full string represented by this leaf tuple */
     fullLen = level + (leafValue->k);
+    // elog(NOTICE, "[leaf] fullLen = %d, palloc %d, level: %d", fullLen, VARHDRSZ + sizeof(int32) + fullLen + 1, level);
     if ((leafValue->k) == 0 && level > 0)
     {
         fullValue = (reconstrValue->data);
@@ -796,7 +839,7 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
         if (level)
             memcpy(fullValue, (reconstrValue->data), level);
         if ((leafValue->k) > 0)
-            memcpy(fullValue + level, (leafValue->data),
+            memcpy(fullValue + level, (char *) (leafValue->data),
                 (leafValue->k));
         fullKmer->data[fullLen] = '\0';
         out->leafValue = KmerPGetDatum(fullKmer);
@@ -808,9 +851,11 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
     {
         StrategyNumber strategy = in->scankeys[j].sk_strategy;
         kmer       *query = DatumGetKmerP(in->scankeys[j].sk_argument);
+        qkmer      *inQkmer;
         int         queryLen = (query->k);
         int         r;
         kmer *leafKmer = DatumGetKmerP(out->leafValue);
+        // elog(NOTICE, "[leaf] leafKmer: %s", leafKmer->data);
 
         if (strategy == RTPrefixStrategyNumber)
         {
@@ -833,41 +878,57 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
 
         size_t minLen = Min(queryLen, fullLen);
 
-        r = 0;
-        for (size_t i = 0; i < minLen; i++) {
-            if (!nucleotide_matches(query->data[i], fullValue[i])) {
-                r = query->data[i] - fullValue[i];
-                break;
-            }
-        }
-    
-        if (r == 0)
-        {
-            if (queryLen > fullLen)
-                r = -1;
-            else if (queryLen < fullLen)
-                r = 1;
-        }
 
         switch (strategy)
         {
-            case BTLessStrategyNumber:
-                res = (r < 0);
-                break;
-            case BTLessEqualStrategyNumber:
-                res = (r <= 0);
-                break;
             case BTEqualStrategyNumber:
+                r = 0;
+                for (size_t i = 0; i < minLen; i++) {
+                    if (!nucleotide_matches(query->data[i], fullValue[i])) {
+                        r = query->data[i] - fullValue[i];
+                        break;
+                    }
+                }
+                if (r == 0)
+                {
+                    if (queryLen > fullLen)
+                        r = -1;
+                    else if (queryLen < fullLen)
+                        r = 1;
+                }
                 res = (r == 0);
                 break;
-            case BTGreaterEqualStrategyNumber:
-                res = (r >= 0);
+            case BTStartsWithStrategyNumber:
+                r = 0;
+                if (queryLen > fullLen) {
+                    res = false;
+                } else {
+                    r = strncmp(query->data, fullValue, queryLen);
+                }
+                res = (r == 0);
                 break;
-            case BTGreaterStrategyNumber:
-                res = (r > 0);
+            case BTContainsStrategyNumber:
+                inQkmer = DatumGetQkmerP(in->scankeys[j].sk_argument);
+                queryLen = inQkmer->k;
+                minLen = Min(queryLen, fullLen);
+                r = 0;
+                for (size_t i = 0; i < minLen; i++) {
+                    if (!nucleotide_matches(inQkmer->data[i], fullValue[i])) {
+                        r = inQkmer->data[i] - fullValue[i];
+                        break;
+                    }
+                }
+                if (r == 0)
+                {
+                    if (queryLen > fullLen)
+                        r = -1;
+                    else if (queryLen < fullLen)
+                        r = 1;
+                }
+                res = (r == 0);
                 break;
             default:
-                elog(ERROR, "unrecognized strategy number: %d",
+                elog(ERROR, "[Leaf] unrecognized strategy number: %d",
                     in->scankeys[j].sk_strategy);
                 res = false;
                 break;
@@ -875,12 +936,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
 
         if (!res)
             break;              /* no need to consider remaining conditions */
-    }
-    int tmp_res;
-    if (res) {
-        tmp_res = 1;
-    } else {
-        tmp_res = 0;
     }
     PG_RETURN_BOOL(res);
 }
@@ -951,4 +1006,24 @@ qkmer_contains(PG_FUNCTION_ARGS) {
     PG_FREE_IF_COPY(pattern, 0);
     PG_FREE_IF_COPY(c, 1);   
     PG_RETURN_BOOL(result);
+}
+
+Datum
+qkmer_contains_swapped(PG_FUNCTION_ARGS) {
+    qkmer *pattern = PG_GETARG_QKMER_P(1);
+    kmer *c = PG_GETARG_KMER_P(0);
+    bool result;
+    if (pattern->k != c->k) {
+        result = false;
+    } else {
+        result = contains(pattern->data, c->data);
+    }
+    PG_FREE_IF_COPY(pattern, 1);
+    PG_FREE_IF_COPY(c, 0);   
+    PG_RETURN_BOOL(result);
+}
+
+Datum
+kmer_starts_with_sel(PG_FUNCTION_ARGS) {
+    PG_RETURN_FLOAT8(0.005); // Placeholder value
 }

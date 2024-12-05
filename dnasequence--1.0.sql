@@ -105,10 +105,15 @@ CREATE FUNCTION starts_with(kmer, kmer)
     AS 'MODULE_PATHNAME', 'kmer_starts_with'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+-- CREATE FUNCTION kmer_starts_with_swapped(kmer, kmer)
+--     RETURNS boolean
+--     AS 'SELECT starts_with($2, $1)'
+--     LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE;
+
 CREATE FUNCTION kmer_starts_with_swapped(kmer, kmer)
     RETURNS boolean
-    AS 'SELECT starts_with($2, $1)'
-    LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE;
+    AS 'MODULE_PATHNAME', 'kmer_starts_with_swapped'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE FUNCTION generate_kmers(dna, integer)
     RETURNS SETOF kmer
@@ -221,6 +226,7 @@ CREATE OPERATOR = (
 CREATE OPERATOR ^@ (
     LEFTARG = kmer, RIGHTARG = kmer,
     PROCEDURE = kmer_starts_with_swapped
+    -- RESTRICT = kmer_starts_with_sel
     -- ? Commutator?
 );
 
@@ -255,7 +261,14 @@ CREATE OPERATOR >= (
 
 CREATE OPERATOR @> (
     LEFTARG = qkmer, RIGHTARG = kmer,
+    COMMUTATOR = <@,
     PROCEDURE = contains
+);
+
+CREATE OPERATOR <@ (
+    LEFTARG = kmer, RIGHTARG = qkmer,
+    COMMUTATOR = @>,
+    PROCEDURE = contains_swapped
 );
 
 /******************************************************************************
@@ -277,15 +290,13 @@ CREATE OPERATOR CLASS kmer_hash_ops
 
 CREATE OPERATOR CLASS kmer_spgist_ops
     DEFAULT FOR TYPE kmer USING spgist AS
-        OPERATOR        1       < ,
-        OPERATOR        2       <= ,
-        OPERATOR        3       = ,
-        OPERATOR        4       >= ,
-        OPERATOR        5       > ,
+        OPERATOR        1       =(kmer, kmer),
+        OPERATOR        2       ^@(kmer, kmer),
+        -- OPERATOR        3       @>(qkmer, kmer),
+        OPERATOR        3       <@(kmer, qkmer),
         FUNCTION        1       spgist_kmer_config(internal, internal),
         FUNCTION        2       spgist_kmer_choose(internal, internal),
         FUNCTION        3       spgist_kmer_picksplit(internal, internal),
         FUNCTION        4       spgist_kmer_inner_consistent(internal, internal),
         FUNCTION        5       spgist_kmer_leaf_consistent(internal, internal),
-        -- FUNCTION        6       spgist_kmer_compress(kmer),
         STORAGE         kmer;

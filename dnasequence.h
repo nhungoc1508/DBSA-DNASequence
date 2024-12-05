@@ -17,7 +17,7 @@
 #include "utils/varlena.h"
 
 #include "c.h"
-#include "access/stratnum.h"
+// #include "access/stratnum.h"
 
 #include "data_types/dna.h"
 #include "data_types/kmer.h"
@@ -56,11 +56,9 @@ typedef struct spgNodePtr
 } spgNodePtr;
 
 typedef uint16 StrategyNumber;
-#define BTLessStrategyNumber            1
-#define BTLessEqualStrategyNumber       2
-#define BTEqualStrategyNumber           3
-#define BTGreaterEqualStrategyNumber    4
-#define BTGreaterStrategyNumber         5
+#define BTEqualStrategyNumber           1
+#define BTStartsWithStrategyNumber		2
+#define BTContainsStrategyNumber		3
 #define SPG_STRATEGY_ADDITION   (10)
 #define SPG_IS_COLLATION_AWARE_STRATEGY(s) ((s) > SPG_STRATEGY_ADDITION \
                                           && (s) != RTPrefixStrategyNumber)

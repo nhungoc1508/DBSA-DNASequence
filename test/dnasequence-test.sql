@@ -351,31 +351,65 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 -- **********************************
 CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 
+-- *** Equality ***
+SELECT * FROM sample_32mers WHERE kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG';
+SELECT * FROM small WHERE kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG';
+--                                                     QUERY PLAN                                                    
+-- ------------------------------------------------------------------------------------------------------------------
+--  Bitmap Heap Scan on small  (cost=32.02..54.27 rows=500 width=41) (actual time=0.643..0.646 rows=1 loops=1)
+--    Recheck Cond: (kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG'::kmer)
+--    Heap Blocks: exact=1
+--    ->  Bitmap Index Scan on sm_idx  (cost=0.00..31.89 rows=500 width=0) (actual time=0.608..0.609 rows=1 loops=1)
+--          Index Cond: (kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG'::kmer)
+--  Planning Time: 0.244 ms
+--  Execution Time: 0.745 ms
+-- (7 rows)
+
+explain analyze select * from small where kmer ^@ 'GTGCTCCGTTCGTTCCCTCCTTGCACA'::kmer;
+--                                                       QUERY PLAN                                                      
+-- ----------------------------------------------------------------------------------------------------------------------
+--  Bitmap Heap Scan on small  (cost=61.23..89.73 rows=333 width=41) (actual time=7.420..8.096 rows=1 loops=1)
+--    Filter: starts_with('GTGCTCCGTTCGTTCCCTCCTTGCACA'::kmer, kmer)
+--    Rows Removed by Filter: 999
+--    Heap Blocks: exact=10
+--    ->  Bitmap Index Scan on sm_idx  (cost=0.00..61.14 rows=1000 width=0) (actual time=7.284..7.285 rows=1000 loops=1)
+--  Planning Time: 0.425 ms
+--  Execution Time: 8.218 ms
+-- (7 rows)
+
 -- *** Prefix search ***
+drop index kmer_spgist_idx;
+SET enable_seqscan = ON;
+SET max_parallel_workers_per_gather = 0;
 \o test/prefix_search/seqscan.txt
-EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
-SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
+SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
 \o
+CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 SET enable_seqscan = OFF;
 \o test/prefix_search/indexscan.txt
-EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
-SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
+SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
 \o
 
+select * from sample_32mers where kmer ^@ 'AGCTAAGAAACAACTCGCTCTGCACAGG';
+
 -- *** Pattern matching using qkmer ***
-SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
-CREATE TEMPORARY TABLE pattern_match (LIKE sample_32mers);
-INSERT INTO pattern_match (
-    SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer
-);
-CREATE TABLE tmp as (
-    SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer
-);
--- CREATE TABLE sample_32mers AS
---     SELECT k.kmer FROM (
---         SELECT generate_kmers(genome, 32)
---         FROM genomes)
---     AS k(kmer);
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
+
+drop index kmer_spgist_idx;
+SET enable_seqscan = ON;
+SET max_parallel_workers_per_gather = 0;
+\o test/pattern_matching/seqscan.txt
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
+SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
+\o
+CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
+SET enable_seqscan = OFF;
+\o test/pattern_matching/indexscan.txt
+EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
+SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
+\o
 
 -- * SYNTHETIC DATA
 -- **********************************
