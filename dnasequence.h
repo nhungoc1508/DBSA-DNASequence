@@ -17,7 +17,6 @@
 #include "utils/varlena.h"
 
 #include "c.h"
-// #include "access/stratnum.h"
 
 #include "data_types/dna.h"
 #include "data_types/kmer.h"
@@ -42,10 +41,6 @@
 #define PG_RETURN_QKMER_P(x) return QkmerPGetDatum(x)
 
 // SP-GiST
-#define SPGIST_MAX_PREFIX_LENGTH	Max((int) (BLCKSZ - 258 * 16 - 100), 32)
-#define SPG_STRATEGY_ADDITION	(10)
-#define SPG_IS_COLLATION_AWARE_STRATEGY(s) ((s) > SPG_STRATEGY_ADDITION \
-										 && (s) != RTPrefixStrategyNumber)
 
 /* Struct for sorting values in picksplit */
 typedef struct spgNodePtr
@@ -59,8 +54,5 @@ typedef uint16 StrategyNumber;
 #define BTEqualStrategyNumber           1
 #define BTStartsWithStrategyNumber		2
 #define BTContainsStrategyNumber		3
-#define SPG_STRATEGY_ADDITION   (10)
-#define SPG_IS_COLLATION_AWARE_STRATEGY(s) ((s) > SPG_STRATEGY_ADDITION \
-                                          && (s) != RTPrefixStrategyNumber)
 
 #endif // DNASEQUENCE_H

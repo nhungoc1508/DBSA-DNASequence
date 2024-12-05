@@ -212,6 +212,11 @@ CREATE FUNCTION contains(qkmer, kmer)
     AS 'MODULE_PATHNAME', 'qkmer_contains'
     LANGUAGE C IMMUTABLE STRICT PARALLEL RESTRICTED;
 
+CREATE FUNCTION contains_swapped(kmer, qkmer)
+    RETURNS boolean
+    AS 'MODULE_PATHNAME', 'qkmer_contains_swapped'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL RESTRICTED;
+
 /******************************************************************************
  * OPERATORS (kmer)
  ******************************************************************************/
@@ -292,7 +297,7 @@ CREATE OPERATOR CLASS kmer_spgist_ops
     DEFAULT FOR TYPE kmer USING spgist AS
         OPERATOR        1       =(kmer, kmer),
         OPERATOR        2       ^@(kmer, kmer),
-        -- OPERATOR        3       @>(qkmer, kmer),
+        OPERATOR        3       @>(qkmer, kmer),
         OPERATOR        3       <@(kmer, qkmer),
         FUNCTION        1       spgist_kmer_config(internal, internal),
         FUNCTION        2       spgist_kmer_choose(internal, internal),

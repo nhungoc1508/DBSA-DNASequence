@@ -423,8 +423,8 @@ CREATE TABLE kmers_big (
 DO $$
 DECLARE
     total_rows BIGINT := 0;
-    batch_size INT := 1000000;
-    max_rows BIGINT := 1000000; 
+    batch_size INT := 5000000;
+    max_rows BIGINT := 5000000; 
 BEGIN
     WHILE total_rows < max_rows LOOP
         INSERT INTO kmers_big (kmer)

@@ -66,9 +66,6 @@ PG_FUNCTION_INFO_V1(qkmer_length);
 PG_FUNCTION_INFO_V1(qkmer_contains);
 PG_FUNCTION_INFO_V1(qkmer_contains_swapped);
 
-// ********** Selectivity functions **********
-PG_FUNCTION_INFO_V1(kmer_starts_with_sel);
-
 /******************************************************************************
  * IMPLEMENTATION
  ******************************************************************************/
@@ -521,11 +518,11 @@ spgist_kmer_choose(PG_FUNCTION_ARGS) {
     PG_RETURN_VOID();
 }
 
-// static inline int
-//  pg_cmp_s16(int16 a, int16 b)
-//  {
-//      return (int32) a - (int32) b;
-//  }
+static inline int
+pg_cmp_s16(int16 a, int16 b)
+{
+   return (int32) a - (int32) b;
+}
 
 /* qsort comparator to sort spgNodePtr structs by "c" */
 static int
@@ -564,7 +561,6 @@ spgist_kmer_picksplit(PG_FUNCTION_ARGS) {
      * Limit the prefix length, if necessary, to ensure that the resulting
      * inner tuple will fit on a page.
      */
-    // commonLen = Min(commonLen, SPGIST_MAX_PREFIX_LENGTH);
 
     /* Set node prefix to be that string, if it's not empty */
     if (commonLen == 0)
@@ -762,14 +758,6 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
                         res = false;
                     // elog(NOTICE, "[inner] CONTAINS: inQkmer: %s, k: %d, minLen: %d, reconst: %s, inSize: %d, thisLen: %d, r: %d", inQkmer->data, inQkmer->k, minLen, reconstrKmer->data, inSize, thisLen, r);
                     break;
-                case RTPrefixStrategyNumber:
-                    if (r != 0)
-                        res = false;
-                    break;
-                default:
-                    elog(ERROR, "[Inner] unrecognized strategy number: %d",
-                        in->scankeys[j].sk_strategy);
-                    break;
             }
 
             if (!res)
@@ -856,25 +844,6 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
         int         r;
         kmer *leafKmer = DatumGetKmerP(out->leafValue);
         // elog(NOTICE, "[leaf] leafKmer: %s", leafKmer->data);
-
-        if (strategy == RTPrefixStrategyNumber)
-        {
-            /*
-            * if level >= length of query then reconstrValue must begin with
-            * query (prefix) string, so we don't need to check it again.
-            */
-            res = (level >= queryLen) ||
-                contains(query->data,leafKmer->data);
-                
-
-            if (!res){
-            // Handle the case where there's no match
-            break;  // Or some indication of no match
-        }
-            
-            
-            continue;
-        }
 
         size_t minLen = Min(queryLen, fullLen);
 
@@ -1021,9 +990,4 @@ qkmer_contains_swapped(PG_FUNCTION_ARGS) {
     PG_FREE_IF_COPY(pattern, 1);
     PG_FREE_IF_COPY(c, 0);   
     PG_RETURN_BOOL(result);
-}
-
-Datum
-kmer_starts_with_sel(PG_FUNCTION_ARGS) {
-    PG_RETURN_FLOAT8(0.005); // Placeholder value
 }
