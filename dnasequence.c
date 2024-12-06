@@ -1,12 +1,3 @@
-// #include <math.h>
-// #include <float.h>
-// #include <stdlib.h>
-
-// #include "postgres.h"
-// #include "fmgr.h"
-// #include "libpq/pqformat.h"
-// #include "utils/fmgrprotos.h"
-
 #include "dnasequence.h"
 
 PG_MODULE_MAGIC;
@@ -100,6 +91,11 @@ dna_length(PG_FUNCTION_ARGS) {
 Datum
 kmer_in(PG_FUNCTION_ARGS) {
     char *str = PG_GETARG_CSTRING(0);
+    if (str == NULL || strlen(str) == 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                 errmsg("Input to kmer type cannot be NULL or empty")));
+    }
     PG_RETURN_KMER_P(kmer_parse(&str));
 }
 
@@ -914,6 +910,11 @@ Datum
 qkmer_in(PG_FUNCTION_ARGS) 
 {
     char *str = PG_GETARG_CSTRING(0);
+    if (str == NULL || strlen(str) == 0) {
+        ereport(ERROR,
+                (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                 errmsg("Input to qkmer type cannot be NULL or empty")));
+    }
     PG_RETURN_QKMER_P(qkmer_parse(&str));
 }
 

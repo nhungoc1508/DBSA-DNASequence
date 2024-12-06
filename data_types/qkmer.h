@@ -1,7 +1,6 @@
 #ifndef QKMER_H
 #define QKMER_H
 
-#define QKMER_MAX_LENGTH 32
 #define VALID_IUPAC_NUCLEOTIDES "ACGTUWSMKRYBDHVNacgtuwsmkrybdhvn"
 
 /******************************************************************************
@@ -11,7 +10,7 @@
 typedef struct
 {
     int32 k;
-    char  data[33];
+    char  data[MAX_KMER_LEN + 1];
 } qkmer;
 
 /******************************************************************************
@@ -105,7 +104,7 @@ qkmer_parse(char **str)
     char* upper_str;
     upper_str = to_uppercase(*str);
     k = (int)strlen(upper_str);
-    if (k > QKMER_MAX_LENGTH)
+    if (k > MAX_KMER_LEN)
         ereport(ERROR, (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION), errmsg("Input exceeds maximum length allowed for type qkmer (32)")));
     return qkmer_make(k, upper_str);
 }

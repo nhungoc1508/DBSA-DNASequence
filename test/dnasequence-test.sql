@@ -54,7 +54,7 @@ SELECT * FROM kmers;
 
 -- Test validation 
 -- Insert only one character
-INSERT INTO kmers (kmer) VALUES ('A')
+INSERT INTO kmers (kmer) VALUES ('A');
 -- Valid edge case (length exactly 32)
 INSERT INTO kmers (kmer) VALUES ('ACGTACGTACGTACGTACGTACGTACGTACGT'); -- Should pass
 

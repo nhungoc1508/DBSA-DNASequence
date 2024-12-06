@@ -19,12 +19,12 @@ CREATE OR REPLACE FUNCTION dna_out(dna)
 -- ********** kmer **********
 CREATE OR REPLACE FUNCTION kmer_in(cstring)
     RETURNS kmer
-    AS 'MODULE_PATHNAME'
+    AS 'MODULE_PATHNAME', 'kmer_in'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION kmer_out(kmer)
     RETURNS cstring
-    AS 'MODULE_PATHNAME'
+    AS 'MODULE_PATHNAME', 'kmer_out'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 -- ********** qkmer **********
@@ -51,12 +51,11 @@ CREATE TYPE dna (
 CREATE TYPE kmer (
     internallength = variable,
     input          = kmer_in,
-    output         = kmer_out,
-    alignment      = double
+    output         = kmer_out
 );
 
 CREATE TYPE qkmer (
-    internallength = 32,
+    internallength = 33,
     input = qkmer_in,
     output = qkmer_out
 );
