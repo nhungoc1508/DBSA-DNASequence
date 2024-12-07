@@ -51,8 +51,8 @@ typedef struct spgNodePtr
 } spgNodePtr;
 
 typedef uint16 StrategyNumber;
-#define BTEqualStrategyNumber           1
-#define BTStartsWithStrategyNumber		2
-#define BTContainsStrategyNumber		3
+#define EqualStrategyNumber         1
+#define StartsWithStrategyNumber	2
+#define ContainsStrategyNumber		3
 
 #endif // DNASEQUENCE_H

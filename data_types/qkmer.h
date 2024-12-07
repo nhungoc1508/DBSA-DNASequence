@@ -1,8 +1,8 @@
 #ifndef QKMER_H
 #define QKMER_H
 
-#define VALID_IUPAC_NUCLEOTIDES "ACGTUWSMKRYBDHVNacgtuwsmkrybdhvn"
-
+#define VALID_IUPAC_NUCLEOTIDES  16
+const char iupac_nucleotides[VALID_IUPAC_NUCLEOTIDES * 2 + 1] = {'A', 'C', 'G', 'T', 'U', 'W', 'S', 'M', 'K', 'R', 'Y', 'B', 'D', 'H', 'V', 'N'};
 /******************************************************************************
  * TYPE STRUCT
  ******************************************************************************/
@@ -18,13 +18,12 @@ typedef struct
  ******************************************************************************/
 
 static qkmer *qkmer_make(int k, char *data);
-static bool is_valid_iupac_nucleotide(char *str);
-static bool is_valid_qkmer(char **str);
+static bool is_valid_qkmer(const char *str);
 static bool nucleotide_matches(char iupac_code, char nucleotide);
-static qkmer *qkmer_parse(char **str);
+static qkmer *qkmer_parse(const char *str);
 static char *qkmer_to_str(const qkmer *c);
 static bool contains(char *pattern, char *c);
-static char *to_uppercase(char *data);
+static char *to_uppercase(const char *data, int length);
 
 /******************************************************************************
  * AUXILIARY FUNCTIONS IMPLEMENTATION
@@ -33,9 +32,7 @@ static char *to_uppercase(char *data);
 static qkmer *
 qkmer_make(int k, char *data)
 {
-    // qkmer *c = palloc0(sizeof(qkmer)); 
-    qkmer *c = (qkmer *) palloc(VARHDRSZ + k + 1);
-    SET_VARSIZE(c, VARHDRSZ + k + 1);
+    qkmer *c = palloc0(sizeof(qkmer));
     c->k = k;
     strcpy(c->data, data);
     c->data[k] = '\0';
@@ -43,24 +40,17 @@ qkmer_make(int k, char *data)
 }
 
 static bool 
-is_valid_iupac_nucleotide(char *str)
+is_valid_qkmer(const char *str)
 {
-    for (int i=0; i<32; i++) {
-        if (*str == VALID_IUPAC_NUCLEOTIDES[i]) {
-            return true;
+    for (int i = 0; str[i] != '\0'; i++) {
+        bool valid = false;
+        for (int j = 0; j < 16; j++) {
+            if (str[i] == iupac_nucleotides[j]) {
+                valid = true;
+                break;
+            }
         }
-    }
-    return false;
-}
-
-static bool 
-is_valid_qkmer(char **str)
-{
-    char *alt_str = *str;
-    while (*alt_str) {
-        if (is_valid_iupac_nucleotide(alt_str)) {
-            alt_str += 1;
-        } else {
+        if (!valid) {
             return false;
         }
     }
@@ -95,17 +85,15 @@ nucleotide_matches(char iupac_code, char nucleotide)
 }
 
 static qkmer *
-qkmer_parse(char **str)
+qkmer_parse(const char *str)
 {
-    int k;
-    bool ret = is_valid_qkmer(str);
-    if (!ret)
-        ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), errmsg("Invalid input syntax for type qkmer")));
-    char* upper_str;
-    upper_str = to_uppercase(*str);
-    k = (int)strlen(upper_str);
+    int k = strlen(str);
     if (k > MAX_KMER_LEN)
         ereport(ERROR, (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION), errmsg("Input exceeds maximum length allowed for type qkmer (32)")));
+    char *upper_str = to_uppercase(str,k);
+    if (!is_valid_qkmer(upper_str))
+        ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), errmsg("Invalid input syntax for type qkmer")));
+    
     return qkmer_make(k, upper_str);
 }
 

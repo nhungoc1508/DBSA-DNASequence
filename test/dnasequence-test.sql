@@ -7,8 +7,8 @@ CREATE TABLE seqs(id SERIAL PRIMARY KEY, dna dna);
 INSERT INTO seqs (dna) VALUES
     ('AT'),
     ('ATG'),
-    ('ATGC'),
-    ('CGTA'),
+    ('atcg'),
+    ('cgta'),
     ('TAGC');
 
 -- Test to see if values were inserted

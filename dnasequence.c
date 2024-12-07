@@ -96,7 +96,7 @@ kmer_in(PG_FUNCTION_ARGS) {
                 (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
                  errmsg("Input to kmer type cannot be NULL or empty")));
     }
-    PG_RETURN_KMER_P(kmer_parse(&str));
+    PG_RETURN_KMER_P(kmer_parse(str));
 }
 
 Datum
@@ -111,7 +111,7 @@ Datum
 kmer_cast_from_text(PG_FUNCTION_ARGS) {
     text *txt = PG_GETARG_TEXT_P(0);
     char *str = DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(txt)));
-    PG_RETURN_KMER_P(kmer_parse(&str));
+    PG_RETURN_KMER_P(kmer_parse(str));
 }
 
 Datum
@@ -723,7 +723,7 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
             
             switch (strategy)
             {
-                case BTEqualStrategyNumber:
+                case EqualStrategyNumber:
                     r = 0;
                     for (size_t i = 0; i < minLen; i++) {
                         if (!nucleotide_matches(reconstrKmer->data[i], inKmer->data[i])) {
@@ -734,12 +734,12 @@ spgist_kmer_inner_consistent(PG_FUNCTION_ARGS){
                     if (r != 0 || inSize < thisLen)
                         res = false;
                     break;
-                case BTStartsWithStrategyNumber:
+                case StartsWithStrategyNumber:
                     r = 0;
                     r = strncmp(inKmer->data, reconstrKmer->data, minLen);
                     res = (r == 0);
                     break;
-                case BTContainsStrategyNumber:
+                case ContainsStrategyNumber:
                     inQkmer = DatumGetQkmerP(in->scankeys[j].sk_argument);
                     inSize = inQkmer->k;
                     minLen = Min(inSize, thisLen);
@@ -846,7 +846,7 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
 
         switch (strategy)
         {
-            case BTEqualStrategyNumber:
+            case EqualStrategyNumber:
                 r = 0;
                 for (size_t i = 0; i < minLen; i++) {
                     if (!nucleotide_matches(query->data[i], fullValue[i])) {
@@ -863,7 +863,7 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
                 }
                 res = (r == 0);
                 break;
-            case BTStartsWithStrategyNumber:
+            case StartsWithStrategyNumber:
                 r = 0;
                 if (queryLen > fullLen) {
                     res = false;
@@ -872,7 +872,7 @@ spgist_kmer_leaf_consistent(PG_FUNCTION_ARGS)
                 }
                 res = (r == 0);
                 break;
-            case BTContainsStrategyNumber:
+            case ContainsStrategyNumber:
                 inQkmer = DatumGetQkmerP(in->scankeys[j].sk_argument);
                 queryLen = inQkmer->k;
                 minLen = Min(queryLen, fullLen);
@@ -915,7 +915,7 @@ qkmer_in(PG_FUNCTION_ARGS)
                 (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
                  errmsg("Input to qkmer type cannot be NULL or empty")));
     }
-    PG_RETURN_QKMER_P(qkmer_parse(&str));
+    PG_RETURN_QKMER_P(qkmer_parse(str));
 }
 
 Datum
@@ -933,7 +933,7 @@ qkmer_cast_from_text(PG_FUNCTION_ARGS)
     text *txt = PG_GETARG_TEXT_P(0);
     char *str = DatumGetCString(DirectFunctionCall1(textout,
                  PointerGetDatum(txt)));
-    PG_RETURN_QKMER_P(qkmer_parse(&str));
+    PG_RETURN_QKMER_P(qkmer_parse(str));
 }
 
 Datum 

@@ -6,10 +6,6 @@
 #include <float.h>
 #include <stdlib.h>
 
-#define MAX_KMER_LEN        32
-#define VALID_NUCLEOTIDES   4
-char nucleotides[VALID_NUCLEOTIDES * 2 + 1] = {'A', 'C', 'G', 'T', 'a', 'c', 'g', 't', '\0'};
-
 /******************************************************************************
  * TYPE STRUCT
  ******************************************************************************/
@@ -24,13 +20,12 @@ typedef struct {
  * AUXILIARY FUNCTIONS DECLARATION
  ******************************************************************************/
 
-static kmer *kmer_make(int k, char *data);
+static kmer *kmer_make(int k, const char *data);
 static void p_whitespace(char **str);
 static void ensure_end_input(char **str, bool end);
-static bool is_valid_nucleotide(char *str);
-static bool is_valid_kmer(char **str);
-static char *to_uppercase(char *data);
-static kmer *kmer_parse(char **str);
+static bool is_valid_sequence(const char *sequence);
+static char *to_uppercase(const char *data, int length);
+static kmer *kmer_parse(const char *str);
 static char *kmer_to_str(const kmer *c);
 static bool starts_with(char *prefix, char *c);
 static int kmer_cmp_internal(kmer *a, kmer *b);
@@ -39,7 +34,7 @@ static int kmer_cmp_internal(kmer *a, kmer *b);
  * AUXILIARY FUNCTIONS IMPLEMENTATION
  ******************************************************************************/
 
-static kmer *kmer_make(int k, char *data) {
+static kmer *kmer_make(int k, const char *data) {
     kmer *c = (kmer *) palloc(VARHDRSZ + sizeof(int32) + k + 1);
     SET_VARSIZE(c, VARHDRSZ + sizeof(int32) + k + 1);
     c->k = k;
@@ -65,51 +60,28 @@ static void ensure_end_input(char **str, bool end) {
     }
 }
 
-static bool is_valid_nucleotide(char *str) {
-    for (int i=0; i<8; i++) {
-        if (*str == nucleotides[i]) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool is_valid_kmer(char **str) {
-    char *alt_str = *str;
-    while (*alt_str) {
-        if (is_valid_nucleotide(alt_str)) {
-            alt_str += 1;
-        } else {
-            return false;
-        }
-    }
-    return true;
-}
-
-static char *to_uppercase(char *data) {
-    int length = strlen(data);
+static char *to_uppercase(const char *data, int length) {
     char *upper_str = palloc(length + 1);
-    for (int i=0; data[i] != '\0'; i++) {
+    for (int i=0; i<length; i++) {
+        upper_str[i] = data[i];
         if (data[i] >= 'a' && data[i] <= 'z') {
-            upper_str[i] = data[i] - 32;
-        } else {
-            upper_str[i] = data[i];
+            upper_str[i] &= ~0x20;
         }
     }
     upper_str[length] = '\0';
     return upper_str;
 }
 
-static kmer *kmer_parse(char **str) {
-    int k;
-    bool ret = is_valid_kmer(str);
-    if (!ret)
-        ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), errmsg("Invalid input syntax for type kmer")));
-    char *upper_str;
-    upper_str = to_uppercase(*str);
-    k = (int)strlen(upper_str);
+static kmer *kmer_parse(const char *str) {
+    int k=strlen(str);
+
     if (k > MAX_KMER_LEN)
         ereport(ERROR, (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION), errmsg("Input exceeds maximum length allowed for type kmer (32)")));
+    
+    char *upper_str = to_uppercase(str, k);
+    if (!is_valid_sequence(upper_str))
+        ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), errmsg("Invalid input syntax for type kmer")));
+
     return kmer_make(k, upper_str);
 }
 
