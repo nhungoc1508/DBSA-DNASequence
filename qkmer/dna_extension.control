@@ -1,8 +1,0 @@
-# this file is a configuration file that tell PostgreSQL about the extension
-
-# dna extension
-comment = 'DNA - input/ouput functions for dna, kmer, qkmer'
-default_version = '1.0'
-module_pathname = '$libdir/dna_extension'
-relocatable = true
-

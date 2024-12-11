@@ -1,5 +1,0 @@
-# dna extension
-comment = 'DNA - input/output functions for types dna, kmer, qkmer'
-default_version = '1.0'
-module_pathname = '$libdir/dna'
-relocatable = true
