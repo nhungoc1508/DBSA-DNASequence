@@ -244,41 +244,32 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
 -- **********************************
 -- * SP-GIST COMPARISON
 -- **********************************
-CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 
 -- *** Equality ***
 SELECT * FROM sample_32mers WHERE kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG';
-explain analyze select * from small where kmer ^@ 'GTGCTCCGTTCGTTCCCTCCTTGCACA'::kmer;
+explain analyze select * from sample_32mers where kmer ^@ 'GTGCTCCGTTCGTTCCCTCCTTGCACA'::kmer;
 
 -- *** Prefix search ***
 drop index kmer_spgist_idx;
 SET enable_seqscan = ON;
 SET max_parallel_workers_per_gather = 0;
-\o test/prefix_search/seqscan.txt
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
 SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
-\o
 CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 SET enable_seqscan = OFF;
-\o test/prefix_search/indexscan.txt
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
 SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
-\o
 
 -- *** Pattern matching using qkmer ***
 drop index kmer_spgist_idx;
 SET enable_seqscan = ON;
 SET max_parallel_workers_per_gather = 0;
-\o test/pattern_matching/seqscan.txt
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
 SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
-\o
 CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 SET enable_seqscan = OFF;
-\o test/pattern_matching/indexscan.txt
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
 SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
-\o
 
 -- **********************************
 -- * SYNTHETIC DATA
