@@ -151,23 +151,6 @@ FROM generate_kmers('ACGTACGTGATTCACGTACGT', 5) AS k(kmer)
 GROUP BY k.kmer
 ORDER BY count(*) DESC;
 
---  kmer  | count
-----------+-------
---  TACGT |     2
---  CGTAC |     2
---  GTACG |     2
---  ACGTA |     2
---  ATTCA |     1
---  TCACG |     1
---  CACGT |     1
---  CGTGA |     1
---  ACGTG |     1
---  TTCAC |     1
---  GTGAT |     1
---  TGATT |     1
---  GATTC |     1
-
-
 -- Test with invalid characters -- should fail
 SELECT k.kmer, count(*)
 FROM generate_kmers('AOISJCGTGATTSADFDCACGTACAFGT', 5) AS k(kmer)
@@ -205,14 +188,9 @@ FROM kmers;
 --           17 |             13 |            9
 
 -- **********************************
--- * BTREE/HASH
--- **********************************
-CREATE INDEX kmer_btree_idx ON kmers USING btree (kmer);
-CREATE INDEX kmer_hash_idx ON kmers USING hash (kmer);
-
--- **********************************
 -- * IMPORT CSV DATA
 -- **********************************
+CREATE EXTENSION dnasequence;
 CREATE TABLE genomes(genome dna);
 \copy genomes FROM './test/dna_parsed/genome_long_parsed.txt' WITH (FORMAT CSV)
 
@@ -222,51 +200,29 @@ CREATE TABLE sample_32mers AS
         FROM genomes)
     AS k(kmer);
 
-CREATE TABLE sample_5mers AS
-    SELECT k.kmer FROM (
-        SELECT generate_kmers(genome, 5)
-        FROM genomes)
-    AS k(kmer);
-
-SELECT k.kmer FROM (
-    SELECT generate_kmers(genome, 5)
-    FROM genomes)
-AS k(kmer);
-
-SELECT k.kmer, count(*) FROM (
-    SELECT generate_kmers(genome, 5)
-    FROM genomes)
-AS k(kmer)
-GROUP BY k.kmer
+WITH kmers AS (
+    SELECT generate_kmers(genome, 32) as kmer
+    FROM genomes
+)
+SELECT kmers.kmer, count(*)
+FROM kmers
+GROUP BY kmers.kmer
 ORDER BY count(*) DESC;
 
-SELECT kmer, count(*) FROM sample_5mers GROUP BY kmer ORDER BY count(*) DESC;
-
--- **********************************
--- * QUERY PLANS
--- **********************************
-EXPLAIN SELECT * FROM kmers; -- OK
-EXPLAIN SELECT * FROM kmers WHERE kmer = 'ACGGTTA'; -- ERROR
-EXPLAIN SELECT * FROM kmers WHERE kmer < 'ACGGTTA'; -- ERROR
-EXPLAIN SELECT * FROM kmers WHERE equals('ACGGTTA', kmer); -- ERROR
-EXPLAIN SELECT * FROM kmers WHERE kmer ^@ 'gAT'; -- ERROR
-EXPLAIN SELECT * FROM kmers WHERE starts_with('ACG', kmer); -- ERROR
-explain select length(kmer) from kmers; -- OK
-EXPLAIN SELECT k.kmer FROM generate_kmers('ACGTACGT', 6) AS k(kmer); -- OK
-EXPLAIN SELECT * FROM kmers WHERE contains('ANGTA', kmer); -- ERROR
-explain select kmer(4, 'ACG'); -- OK
-explain select kmer, length(kmer) from (select kmer(3, 'ACG')); -- OK
-explain select kmer, text(kmer) from (select kmer(3, 'ACG')); -- OK
-explain select kmer, spgist_kmer_compress(kmer) from (select kmer(3, 'ACG')); -- OK
-explain select kmer, kmer_tmp_a(kmer) from kmers; -- OK
-explain select kmer, kmer_tmp_b(kmer, kmer) from kmers; -- OK
-explain select kmer, kmer_cmp(kmer, 'ACGGTTA') from kmers; -- OK
-explain select kmer, equals(kmer, kmer) from kmers; -- OK
-explain select kmer, equals(kmer, 'ACGGTTA') from kmers; -- OK
-explain select * from kmers k1, kmers k2 where equals(k1.kmer, k2.kmer); -- OK
-explain with k as (select 'ACGGTTA'::kmer) select * from k where kmer ^@ 'ACG'; -- OK
-explain with k as (select 'ACGGTTA'::kmer) select * from k where kmer = 'ACGGTTA'; -- OK
-explain select * from kmers where kmer_tmp_c(kmer, 'ACGT') is true; -- ERROR
+WITH kmers AS (
+    SELECT generate_kmers(genome, 32) as kmer
+    FROM genomes
+),
+kmers_count AS (
+    SELECT kmers.kmer, count(*)
+    FROM kmers
+    GROUP BY kmers.kmer
+    ORDER BY count(*) DESC
+)
+SELECT sum(count) AS total_count,
+       count(*) AS distinct_count,
+       count(*) FILTER (WHERE count = 1) AS unique_count
+FROM kmers_count;
 
 -- **********************************
 -- * SP-GIST INDEX
@@ -274,77 +230,16 @@ explain select * from kmers where kmer_tmp_c(kmer, 'ACGT') is true; -- ERROR
 CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 SET enable_seqscan = OFF;
 select * from sample_32mers where kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC';
-select * from sample_5mers where kmer = 'AAAGA';
 select * from sample_32mers limit 5;
 
 -- *** Equality search ***
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC';
 
--- **** With SP-GIST ****
---                                                                 QUERY PLAN
--- ------------------------------------------------------------------------------------------------------------------------------------------
---  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..238.22 rows=4004 width=41) (actual time=0.050..0.051 rows=1 loops=1)
---    Index Cond: (kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC'::kmer)
---    Heap Fetches: 0
---  Planning Time: 0.139 ms
---  Execution Time: 0.086 ms
--- (5 rows)
--- **** Without SP-GIST ****
---                                                  QUERY PLAN
--- -------------------------------------------------------------------------------------------------------------
---  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=4004 width=41) (actual time=0.019..1.116 rows=1 loops=1)
---    Filter: (kmer = 'AAAGAGGCTAACAGGCTTTTGAAAAGTTATTC'::kmer)
---    Rows Removed by Filter: 8008
---  Planning Time: 0.095 ms
---  Execution Time: 1.135 ms
--- (5 rows)
-
 -- *** Prefix search ***
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'ACG';
 
--- **** With SP-GIST ****
---                                                                  QUERY PLAN
--- --------------------------------------------------------------------------------------------------------------------------------------------
---  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..476.31 rows=2670 width=41) (actual time=2.257..2.807 rows=126 loops=1)
---    Filter: starts_with('ACG'::kmer, kmer)
---    Rows Removed by Filter: 7883
---    Heap Fetches: 0
---  Planning Time: 0.132 ms
---  Execution Time: 2.837 ms
--- (6 rows)
--- **** Without SP-GIST ****
---                                                   QUERY PLAN
--- ---------------------------------------------------------------------------------------------------------------
---  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=2670 width=41) (actual time=0.088..1.271 rows=126 loops=1)
---    Filter: starts_with('ACG'::kmer, kmer)
---    Rows Removed by Filter: 7883
---  Planning Time: 0.174 ms
---  Execution Time: 1.301 ms
--- (5 rows)
-
 -- *** Pattern matching using qkmer ***
 EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ANGTA' @> kmer;
-
--- **** With SP-GIST ****
---                                                                 QUERY PLAN
--- ------------------------------------------------------------------------------------------------------------------------------------------
---  Index Only Scan using kmer_spgist_idx on sample_32mers  (cost=0.15..476.31 rows=4004 width=41) (actual time=2.149..2.150 rows=0 loops=1)
---    Filter: ('ANGTA'::qkmer @> kmer)
---    Rows Removed by Filter: 8009
---    Heap Fetches: 0
---  Planning Time: 0.090 ms
---  Execution Time: 2.171 ms
--- (6 rows)
--- **** Without SP-GIST ****
---                                                  QUERY PLAN
--- -------------------------------------------------------------------------------------------------------------
---  Seq Scan on sample_32mers  (cost=0.00..175.11 rows=4004 width=41) (actual time=0.818..0.819 rows=0 loops=1)
---    Filter: ('ANGTA'::qkmer @> kmer)
---    Rows Removed by Filter: 8009
---  Planning Time: 0.087 ms
---  Execution Time: 0.835 ms
--- (5 rows)
-
 
 -- **********************************
 -- * SP-GIST COMPARISON
@@ -353,29 +248,7 @@ CREATE INDEX kmer_spgist_idx ON sample_32mers USING spgist(kmer);
 
 -- *** Equality ***
 SELECT * FROM sample_32mers WHERE kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG';
-SELECT * FROM small WHERE kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG';
---                                                     QUERY PLAN                                                    
--- ------------------------------------------------------------------------------------------------------------------
---  Bitmap Heap Scan on small  (cost=32.02..54.27 rows=500 width=41) (actual time=0.643..0.646 rows=1 loops=1)
---    Recheck Cond: (kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG'::kmer)
---    Heap Blocks: exact=1
---    ->  Bitmap Index Scan on sm_idx  (cost=0.00..31.89 rows=500 width=0) (actual time=0.608..0.609 rows=1 loops=1)
---          Index Cond: (kmer = 'GTGCTCCGTTCGTTCCCTCCTTGCACAGAAAG'::kmer)
---  Planning Time: 0.244 ms
---  Execution Time: 0.745 ms
--- (7 rows)
-
 explain analyze select * from small where kmer ^@ 'GTGCTCCGTTCGTTCCCTCCTTGCACA'::kmer;
---                                                       QUERY PLAN                                                      
--- ----------------------------------------------------------------------------------------------------------------------
---  Bitmap Heap Scan on small  (cost=61.23..89.73 rows=333 width=41) (actual time=7.420..8.096 rows=1 loops=1)
---    Filter: starts_with('GTGCTCCGTTCGTTCCCTCCTTGCACA'::kmer, kmer)
---    Rows Removed by Filter: 999
---    Heap Blocks: exact=10
---    ->  Bitmap Index Scan on sm_idx  (cost=0.00..61.14 rows=1000 width=0) (actual time=7.284..7.285 rows=1000 loops=1)
---  Planning Time: 0.425 ms
---  Execution Time: 8.218 ms
--- (7 rows)
 
 -- *** Prefix search ***
 drop index kmer_spgist_idx;
@@ -392,11 +265,7 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
 SELECT * FROM sample_32mers WHERE kmer ^@ 'AGCT';
 \o
 
-select * from sample_32mers where kmer ^@ 'AGCTAAGAAACAACTCGCTCTGCACAGG';
-
 -- *** Pattern matching using qkmer ***
-EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'AAAGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
-
 drop index kmer_spgist_idx;
 SET enable_seqscan = ON;
 SET max_parallel_workers_per_gather = 0;
@@ -411,24 +280,26 @@ EXPLAIN ANALYZE SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNN
 SELECT * FROM sample_32mers WHERE 'ATCGAGNNNNNNNNNNNNNNNNNNNNNNNNNN' @> kmer;
 \o
 
+-- **********************************
 -- * SYNTHETIC DATA
 -- **********************************
--- Create table where kmers will be stored
+-- * Create table where kmers will be stored
 CREATE TABLE kmers_big (
     id SERIAL PRIMARY KEY,
     kmer kmer  
 );
 
--- Create synthetic data
+-- * Create synthetic data
 DO $$
 DECLARE
     total_rows BIGINT := 0;
-    batch_size INT := 5000000;
-    max_rows BIGINT := 5000000; 
+    batch_size INT := 350000;
+    max_rows BIGINT := 350000; 
 BEGIN
     WHILE total_rows < max_rows LOOP
         INSERT INTO kmers_big (kmer)
-        SELECT generate_kmers('ACGTACGTACGTACGTACGTACGTACGTACGT', trunc(random() * 32 + 1)::int) FROM generate_series(1, batch_size);
+        SELECT generate_kmers('ACGTACGTACGTACGTACGTACGTACGTACGT', trunc(random() * 32 + 1)::int)
+        FROM generate_series(1, batch_size);
 
         total_rows := total_rows + batch_size;
         RAISE NOTICE 'Inserted % rows so far', total_rows;
@@ -468,5 +339,3 @@ SELECT * FROM kmers_big WHERE kmer = '';
 -- Performance Test
 EXPLAIN ANALYZE SELECT * FROM kmers_big WHERE kmer = 'ACGTTGCA';
 EXPLAIN ANALYZE SELECT * FROM kmers_big WHERE kmer ^@ 'ACG';
-
-
